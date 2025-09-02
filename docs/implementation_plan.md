@@ -4,9 +4,9 @@ This document provides a granular, step-by-step checklist for developing the Min
 
 ## 1. Initial Setup & Configuration
 
-- [ ] **Project Structure:** Create the monorepo folder structure (`/frontend`, `/backend`, etc.) as defined in `project_structure.md`.
-- [ ] **Backend Environment:** In the `/backend` directory, initialize a new project with `uv`. Create the `pyproject.toml` file.
-- [ ] **Frontend Environment:** In the `/frontend` directory, initialize a new Vue.js 3 project.
+- [x] **Project Structure:** Create the monorepo folder structure (`/frontend`, `/backend`, etc.) as defined in `project_structure.md`.
+- [x] **Backend Environment:** In the `/backend` directory, initialize a new project with `uv`. Create the `pyproject.toml` file.
+- [x] **Frontend Environment:** In the `/frontend` directory, initialize a new Vue.js 3 project.
 - [ ] **Version Control:** Initialize a Git repository in the root directory and create the initial commit.
 - [ ] **GCP/Firebase Project:**
     - [ ] Create a new project in the Google Cloud Console.
@@ -16,9 +16,9 @@ This document provides a granular, step-by-step checklist for developing the Min
 ## 2. Backend Development (FastAPI)
 
 ### 2.1. Boilerplate & Configuration
-- [ ] **FastAPI App:** Create the main FastAPI app entrypoint in `backend/app/main.py`.
-- [ ] **CORS Middleware:** Configure CORS to allow requests from the frontend's development server.
-- [ ] **Firebase Admin SDK:** Create `firebase_service.py` and implement the logic to initialize the Firebase Admin SDK using a service account.
+- [x] **FastAPI App:** Create the main FastAPI app entrypoint in `backend/app/main.py`.
+- [x] **CORS Middleware:** Configure CORS to allow requests from the frontend's development server.
+- [x] **Firebase Admin SDK:** Create `firebase_service.py` and implement the logic to initialize the Firebase Admin SDK using a service account.
 
 ### 2.2. Core API Endpoints & Logic
 - [ ] **Pydantic Models:** In `backend/app/models/`, define all Pydantic models for API request and response bodies.
