@@ -126,3 +126,17 @@ All endpoints listed below are protected. The frontend client must include a val
       "message": "Player successfully kicked."
     }
     ```
+
+### In-Game Orchestration
+
+- **`POST /games/{gameId}/tally-answers`**
+  - **Description**: Triggered by a client when the answer submission timer expires. The backend validates the time and transitions the game state from `ANSWER_SUBMISSION` to `VOTING`. This includes moving all answers from the `pending_messages` subcollection to a publicly visible location.
+  - **Authentication**: Required (Firebase ID Token).
+  - **Request Body**: None.
+  - **Response**: `204 No Content` on success.
+
+- **`POST /games/{gameId}/tally-votes`**
+  - **Description**: Triggered by a client when the voting timer expires. The backend validates the time, tallies the votes, processes eliminations, and transitions the game to the next round or ends the game.
+  - **Authentication**: Required (Firebase ID Token).
+  - **Request Body**: None.
+  - **Response**: `204 No Content` on success.

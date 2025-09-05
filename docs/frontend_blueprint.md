@@ -43,3 +43,11 @@ The application will be broken down into several key views.
     *   **Message Input Area:** The text box and send button for players to submit their answers during the submission phase. This component will be disabled outside of the submission phase.
     *   **Voting Interface:** During the voting phase, this component will appear, allowing the player to select a user to vote for.
     *   **Game Over Screen:** A modal or view to announce the game's outcome, revealing the impostor(s) and who won.
+
+### State Management and Orchestration
+
+The frontend plays a critical role in the game's time-based orchestration.
+
+- **Client-Side Timers**: The application will read a `roundEndTime` timestamp from the active game's document in Firestore. It will be responsible for displaying a visual countdown timer based on this timestamp.
+- **Triggering State Transitions**: When the countdown timer reaches zero, the client of the designated host will be responsible for sending a request to the appropriate backend endpoint (e.g., `/tally-answers`). This triggers the server to validate the time and advance the game to the next phase.
+- **Reactive UI**: The UI will be driven by the `roundPhase` field in the game document. Components like the answer submission form and voting controls will be conditionally rendered based on the value of this field, ensuring players can only perform actions relevant to the current game phase.

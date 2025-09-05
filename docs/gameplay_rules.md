@@ -43,7 +43,7 @@ Each of the three rounds follows a strict, backend-enforced sequence:
 
 1.  **Voting Phase:** After the answers for Round 2 and Round 3 are revealed, a voting period begins.
 2.  **Casting Votes:** Each player casts one vote for who they believe is an AI impostor. If there are two AIs, they may have two votes.
-3.  **Elimination:** The player with the most votes is eliminated.
+3.  **Elimination:** The player with the most votes is eliminated. If there is a tie for the most votes, no player is eliminated in that round.
 4.  **Identity Reveal:** The identity of the eliminated player (Human or AI) is revealed to everyone.
 
 ## 3. End Game & Win Conditions
@@ -51,4 +51,5 @@ Each of the three rounds follows a strict, backend-enforced sequence:
 The game ends when one of the following conditions is met:
 
 *   **Human Victory:** All AI impostors have been successfully voted out and eliminated.
-*   **AI Victory:** At least one AI impostor survives the final vote at the end of Round 3.
+*   **AI Victory (Parity):** The number of AI impostors becomes equal to or greater than the number of human players.
+*   **AI Victory (Survival):** At least one AI impostor survives the final vote at the end of Round 3.

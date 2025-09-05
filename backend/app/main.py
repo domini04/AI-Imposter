@@ -29,6 +29,8 @@ def ping():
     """A simple endpoint to check if the server is alive."""
     return {"message": "pong"}
 
-# We will later include our game API routes here
-# from app.api.endpoints import games
-# app.include_router(games.router, prefix="/api/v1")
+# Include the API router from the games endpoint file.
+# All routes defined in games.py will now be part of our main app,
+# prefixed with /api/v1/games
+from app.api.endpoints import games
+app.include_router(games.router, prefix="/api/v1/games", tags=["Games"])

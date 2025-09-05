@@ -1,0 +1,47 @@
+This document serves as an architectural decision record (ADR). Its purpose is to document key technical decisions, architectural changes, and the reasoning behind them. It is not a log of tasks completed, but a record of significant choices that shape the project's design and future development.
+
+## Development Decision Records
+
+### **September 1, 2024 - Hybrid Database Strategy**
+
+**Issue**: The project requires two distinct types of data handling: low-latency, real-time updates for active game state and large-scale, analytical queries for historical data to be used in AI training. A single database technology is often not optimal for both use cases.
+
+**Decision**: We will use a hybrid database model. Google Cloud Firestore will be used for all real-time data, including game rooms, player lists, and live chat. Google BigQuery will be used as a data warehouse for storing historical game results and analytics.
+
+**Reasoning**: This approach uses the right tool for the job. Firestore's real-time synchronization capabilities are ideal for the interactive gameplay loop. BigQuery is a columnar data warehouse designed for the complex, large-scale analytical queries we will need to perform to extract training data and monitor AI performance, a task for which Firestore is not suited.
+
+### **September 1, 2024 - Frictionless User Authentication**
+
+**Issue**: The MVP of the game should allow players to join and play as quickly as possible, without the friction of a traditional email/password sign-up process. However, the backend still requires a secure and unique identifier for each player.
+
+**Decision**: We will use Firebase Anonymous Authentication for the initial version of the game. This creates a temporary, unique user account for each player session without requiring any credentials.
+
+**Reasoning**: This strategy provides the best of both worlds for an MVP. It offers a frictionless "guest" experience for the user while still providing the backend with a secure, unique UID for each player. This UID is essential for tracking players within a game and for authentication with our backend API. The complexity of full user accounts (social logins, password recovery) is deferred, allowing us to focus on core gameplay features first.
+
+### **September 3, 2024 - Layered Backend Architecture**
+
+**Issue**: We needed a backend structure that was maintainable, testable, and scalable. A monolithic approach where HTTP handling and business logic are mixed would quickly become difficult to manage.
+
+**Decision**: The backend is structured into two primary layers: an API Layer (in `app/api/endpoints/`) and a Service Layer (in `app/services/`). The API layer is responsible only for handling HTTP requests and responses, while the Service layer contains all the core business logic, independent of the web.
+
+**Reasoning**: This layered architecture promotes a strong separation of concerns. It makes the business logic highly reusable and, most importantly, allows for isolated unit testing of the core game rules without the overhead of a web server. This leads to a more robust, maintainable, and scalable codebase.
+
+### **September 5, 2024 - Granular In-Game State Management**
+
+**Issue**: The existing `status` field in the `game_rooms` document (with values like "waiting", "in_progress") is too broad to manage the distinct phases within an active game round. It doesn't provide a mechanism to enforce rules like preventing votes during the answer submission phase.
+
+**Decision**: We will introduce a new field, `roundPhase`, to the `game_rooms` document. This field will hold specific string values representing the current state of a round, such as `ANSWER_SUBMISSION`, `VOTING`, and `ROUND_ENDED`. The backend will be solely responsible for transitioning this state.
+
+**Reasoning**: A granular `roundPhase` field establishes an authoritative state machine for the game flow. It allows the backend to validate player actions against the current phase, preventing invalid operations and ensuring the game progresses according to the rules. This separation of concerns makes the core game logic more robust, easier to test, and less prone to race conditions or client-side manipulation.
+
+### **September 5, 2024 - Handling Time-Based State Transitions**
+
+**Issue**: Our game requires server-authoritative state transitions to occur after a set time (e.g., ending the answer submission phase after 3 minutes). However, stateless web servers like FastAPI cannot natively "wait" or schedule future actions, presenting a challenge for managing the game's lifecycle automatically.
+
+**Decision**: For the MVP, we will adopt a "Client-Triggered, Server-Validated" approach.
+1.  When a timed phase begins, the backend will write a definitive `roundEndTime` timestamp to the Firestore document.
+2.  The frontend will use this timestamp to display a countdown.
+3.  When the timer expires, the client will send a request to a dedicated endpoint (e.g., `/tally-answers`).
+4.  The backend will then validate this request by comparing the current server time to the stored `roundEndTime` before executing the state transition, ensuring the action is legitimate.
+
+**Reasoning**: This decision was made after considering two options: the chosen approach and a more complex, production-grade solution using serverless scheduled jobs (e.g., Google Cloud Tasks and Cloud Functions). While the serverless approach offers guaranteed execution independent of client activity, it introduces significant infrastructural and local development complexity. The chosen client-triggered method maintains server authority (by validating the timestamp) and is far simpler to implement for an MVP, requiring no additional cloud services. The acceptable trade-off is that the game state will not advance if all players disconnect, which is a minor risk for the initial version of the game.

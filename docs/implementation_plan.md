@@ -21,9 +21,9 @@ This document provides a granular, step-by-step checklist for developing the Min
 - [x] **Firebase Admin SDK:** Create `firebase_service.py` and implement the logic to initialize the Firebase Admin SDK using a service account.
 
 ### 2.2. Core API Endpoints & Logic
-- [ ] **Pydantic Models:** In `backend/app/models/`, define all Pydantic models for API request and response bodies.
-- [ ] **Auth Dependency:** In `backend/app/api/deps.py`, create a reusable dependency to decode and validate the Firebase Auth ID Token from the `Authorization` header.
-- [ ] **Endpoint: `POST /games`:** Implement the "Create Game" endpoint.
+- [x] **Pydantic Models:** In `backend/app/models/`, define all Pydantic models for API request and response bodies.
+- [x] **Auth Dependency:** In `backend/app/api/deps.py`, create a reusable dependency to decode and validate the Firebase Auth ID Token from the `Authorization` header.
+- [x] **Endpoint: `POST /games`:** Implement the "Create Game" endpoint.
 - [ ] **Endpoint: `GET /games`:** Implement the "List Public Games" endpoint.
 - [ ] **Endpoint: `POST /games/{id}/join`:** Implement the "Join Game" endpoint.
 - [ ] **Endpoint: `POST /games/{id}/start`:** Implement the "Start Game" endpoint, including the logic for secret impostor assignment.
