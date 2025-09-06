@@ -1,0 +1,19 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "FastAPI backend for the AI Impostor Game"
+authors = [
+    {name = "AI Software Engineer"},
+]
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "firebase-admin",
+    "python-dotenv",
+    "google-auth",
+    "requests",
+    "urllib3",
+]
+
+[tool.uv]
+dev-dependencies = []

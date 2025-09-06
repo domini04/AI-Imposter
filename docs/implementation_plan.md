@@ -7,11 +7,11 @@ This document provides a granular, step-by-step checklist for developing the Min
 - [x] **Project Structure:** Create the monorepo folder structure (`/frontend`, `/backend`, etc.) as defined in `project_structure.md`.
 - [x] **Backend Environment:** In the `/backend` directory, initialize a new project with `uv`. Create the `pyproject.toml` file.
 - [x] **Frontend Environment:** In the `/frontend` directory, initialize a new Vue.js 3 project.
-- [ ] **Version Control:** Initialize a Git repository in the root directory and create the initial commit.
-- [ ] **GCP/Firebase Project:**
-    - [ ] Create a new project in the Google Cloud Console.
-    - [ ] In the Firebase console, create a new project linked to the GCP project.
-    - [ ] Enable the following services: Authentication (with Anonymous sign-in method), Firestore, and Cloud Run.
+- [x] **Version Control:** Initialize a Git repository in the root directory and create the initial commit.
+- [x] **GCP/Firebase Project:**
+    - [x] Create a new project in the Google Cloud Console.
+    - [x] In the Firebase console, create a new project linked to the GCP project.
+    - [x] Enable the following services: Authentication (with Anonymous sign-in method), Firestore, and Cloud Run.
 
 ## 2. Backend Development (FastAPI)
 
@@ -24,15 +24,11 @@ This document provides a granular, step-by-step checklist for developing the Min
 - [x] **Pydantic Models:** In `backend/app/models/`, define all Pydantic models for API request and response bodies.
 - [x] **Auth Dependency:** In `backend/app/api/deps.py`, create a reusable dependency to decode and validate the Firebase Auth ID Token from the `Authorization` header.
 - [x] **Endpoint: `POST /games`:** Implement the "Create Game" endpoint.
-- [ ] **Endpoint: `GET /games`:** Implement the "List Public Games" endpoint.
-- [ ] **Endpoint: `POST /games/{id}/join`:** Implement the "Join Game" endpoint.
-- [ ] **Endpoint: `POST /games/{id}/start`:** Implement the "Start Game" endpoint, including the logic for secret impostor assignment.
-- [ ] **Endpoint: `POST /games/{id}/submit-answer`:** Implement the logic to handle a player submitting their answer.
-- [ ] **Endpoint: `POST /games/{id}/vote`:** Implement the logic for casting a vote.
-
-### 2.3. Deployment Setup
-- [ ] **Dockerfile:** Create the `Dockerfile` for containerizing the FastAPI application.
-- [ ] **Initial Deployment:** Write a script or document the steps to build the Docker image and deploy it to Cloud Run for the first time.
+- [x] **Endpoint: `GET /games`:** Implement the "List Public Games" endpoint.
+- [x] **Endpoint: `POST /games/{id}/join`:** Implement the "Join Game" endpoint.
+- [x] **Endpoint: `POST /games/{id}/start`:** Implement the "Start Game" endpoint, including the logic for secret impostor assignment.
+- [x] **Endpoint: `POST /games/{id}/submit-answer`:** Implement the logic to handle a player submitting their answer.
+- [x] **Endpoint: `POST /games/{id}/vote`:** Implement the logic for casting a vote.
 
 ## 3. Frontend Development (Vue.js)
 
@@ -60,7 +56,11 @@ This document provides a granular, step-by-step checklist for developing the Min
     - [ ] Implement the voting interface.
     - [ ] Connect the "Submit Answer" and "Cast Vote" actions to their respective backend endpoints.
 
-## 4. First Playable Milestone
+## 4. Deployment Setup
+- [ ] **Dockerfile:** Create the `Dockerfile` for containerizing the FastAPI application.
+- [ ] **Initial Deployment:** Write a script or document the steps to build the Docker image and deploy it to Cloud Run for the first time.
+
+## 5. First Playable Milestone
 
 - [ ] **End-to-End Test:** Manually test the full game loop:
     1. A user can create a game.
@@ -68,3 +68,19 @@ This document provides a granular, step-by-step checklist for developing the Min
     3. The host can start the game.
     4. Players can submit answers, which are then revealed.
     5. A full, playable game can be completed.
+
+## 6. AI Performance Analytics Pipeline
+
+- [ ] **Backend Logic:** Implement the logic in the `game_service` to write a final summary document to the `game_results` collection in Firestore when a game concludes.
+- [ ] **BigQuery Setup:** Create the `game_results` table in Google BigQuery with the schema from `database_schema.md`.
+- [ ] **Data Ingestion Function:** Write and deploy a Cloud Function that is triggered by new documents in the Firestore `game_results` collection and streams the data into BigQuery.
+- [ ] **Performance Dashboard:** Connect Looker Studio to the BigQuery table and build a basic dashboard to visualize key metrics like AI survival rate.
+
+## 7. Asynchronous Training Pipeline
+
+- [ ] **Data Extraction Function:** Create a scheduled Cloud Function that queries BigQuery for data from successful games.
+- [ ] **Data Formatting:** Implement logic within the function to format the query results into a structured training dataset (e.g., JSONL).
+- [ ] **Cloud Storage:** Configure a Cloud Storage bucket to receive the formatted training datasets.
+- [ ] **Training Orchestration:** Set up a Vertex AI Pipeline (or Cloud Workflow) that is triggered when a new dataset is uploaded to Cloud Storage.
+- [ ] **Fine-Tuning Integration (PoC):** Configure the pipeline to call the fine-tuning API for a single provider (e.g., Vertex AI) as a proof of concept.
+- [ ] **Model Management:** Implement a strategy for versioning the fine-tuned models so they can be referenced by the main application.
