@@ -1,9 +1,10 @@
 import { db } from './firebase';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore';
 
 // This variable will hold the function to unsubscribe from the current listener.
 // This ensures we only have one active game listener at a time.
-let activeListener = null;
+let activeGameListener = null;
+let activeMessagesListener = null;
 
 /**
  * Subscribes to real-time updates for a specific game document in Firestore.
@@ -14,9 +15,9 @@ let activeListener = null;
  */
 export const subscribeToGame = (gameId, callback) => {
   // If there's already an active listener, unsubscribe from it before starting a new one.
-  if (activeListener) {
+  if (activeGameListener) {
     console.log('Unsubscribing from previous game listener.');
-    activeListener();
+    activeGameListener();
   }
 
   console.log(`Subscribing to real-time updates for game: ${gameId}`);
@@ -25,7 +26,7 @@ export const subscribeToGame = (gameId, callback) => {
   const gameDocRef = doc(db, 'game_rooms', gameId);
 
   // onSnapshot returns an unsubscribe function. We store it in our activeListener variable.
-  activeListener = onSnapshot(
+  activeGameListener = onSnapshot(
     gameDocRef,
     (docSnapshot) => {
       if (docSnapshot.exists()) {
@@ -51,9 +52,50 @@ export const subscribeToGame = (gameId, callback) => {
  * This should be called when the component is unmounted to prevent memory leaks.
  */
 export const unsubscribeFromGame = () => {
-  if (activeListener) {
+  if (activeGameListener) {
     console.log('Unsubscribing from active game listener.');
-    activeListener();
-    activeListener = null;
+    activeGameListener();
+    activeGameListener = null;
+  }
+};
+
+/**
+ * Subscribes to real-time updates for the messages subcollection of a game.
+ *
+ * @param {string} gameId - The ID of the game whose messages to listen to.
+ * @param {function} callback - The function to call with the array of messages.
+ */
+export const subscribeToMessages = (gameId, callback) => {
+  if (activeMessagesListener) {
+    activeMessagesListener();
+  }
+
+  const messagesRef = collection(db, 'game_rooms', gameId, 'messages');
+  const messagesQuery = query(messagesRef, orderBy('timestamp', 'asc'));
+
+  activeMessagesListener = onSnapshot(
+    messagesQuery,
+    (querySnapshot) => {
+      const messages = [];
+      querySnapshot.forEach((doc) => {
+        messages.push({ id: doc.id, ...doc.data() });
+      });
+      callback(messages);
+    },
+    (error) => {
+      console.error(`Error listening to messages for game ${gameId}:`, error);
+      callback([]);
+    }
+  );
+};
+
+/**
+ * Unsubscribes from the currently active messages listener.
+ */
+export const unsubscribeFromMessages = () => {
+  if (activeMessagesListener) {
+    console.log('Unsubscribing from active messages listener.');
+    activeMessagesListener();
+    activeMessagesListener = null;
   }
 };

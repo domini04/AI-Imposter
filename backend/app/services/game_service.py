@@ -1,6 +1,7 @@
 from firebase_admin import firestore
 from app.services.firebase_service import get_firestore_client
 from app.models.game import CreateGameRequest
+from app.utils import helpers
 import datetime
 import random
 import uuid
@@ -36,7 +37,7 @@ def create_game(host_uid: str, settings: CreateGameRequest) -> str:
         "players": [
             {
                 "uid": host_uid,
-                "gameDisplayName": host_game_name,
+                # "gameDisplayName" is removed. It will be assigned at game start.
                 "isImpostor": False # Host is always human
             }
         ],
@@ -112,7 +113,7 @@ def join_game(game_id: str, user_uid: str):
 
     new_player = {
         "uid": user_uid,
-        "gameDisplayName": new_player_name,
+        # "gameDisplayName" is removed. It will be assigned at game start.
         "isImpostor": False # Impostor status is assigned when the game starts
     }
 
@@ -160,17 +161,21 @@ def start_game(game_id: str, user_uid: str):
         player['isImpostor'] = False
 
     # Create AI player objects and mark them as impostors.
-    # In a real implementation, names would be generated dynamically.
     ai_players = []
     for _ in range(ai_count):
         ai_players.append({
             "uid": f"ai_{uuid.uuid4()}",
-            "gameDisplayName": "Witty Walrus", # Placeholder
+            # "gameDisplayName" will be assigned below.
             "isImpostor": True
         })
 
     # Combine human and AI players into a single list of all participants.
     all_participants = players + ai_players
+
+    # NEW: Assign unique, random names to all participants at the same time.
+    nicknames = helpers.generate_unique_nicknames(len(all_participants))
+    for i, participant in enumerate(all_participants):
+        participant["gameDisplayName"] = nicknames[i]
 
     # Shuffle the list to randomize player order for the frontend.
     random.shuffle(all_participants)

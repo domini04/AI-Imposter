@@ -8,6 +8,10 @@ defineProps({
     type: String,
     required: true,
   },
+  status: {
+    type: String,
+    required: true,
+  }
 });
 </script>
 
@@ -15,8 +19,15 @@ defineProps({
   <aside class="player-list-container">
     <h3>Players ({{ players.length }})</h3>
     <ul class="player-list">
-      <li v-for="player in players" :key="player.uid" class="player-item">
-        <span class="player-name">{{ player.gameDisplayName }}</span>
+      <li v-for="(player, index) in players" :key="player.uid" class="player-item">
+        <span class="player-name">
+          <template v-if="status === 'waiting'">
+            Player {{ index + 1 }}
+          </template>
+          <template v-else>
+            {{ player.gameDisplayName }}
+          </template>
+        </span>
         <span v-if="player.uid === hostId" class="host-tag" title="Game Host">👑</span>
       </li>
     </ul>

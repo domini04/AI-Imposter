@@ -1,16 +1,31 @@
 <script setup>
-import { onMounted, onUnmounted, computed } from 'vue';
+import { onMounted, onUnmounted, computed, ref } from 'vue';
 import { useRoute } from 'vue-router';
 import { useGameStore } from '@/stores/game';
-import { subscribeToGame, unsubscribeFromGame } from '@/services/game_listener';
+import { 
+  subscribeToGame, 
+  unsubscribeFromGame, 
+  subscribeToMessages, 
+  unsubscribeFromMessages 
+} from '@/services/game_listener';
+import { getCurrentUser } from '@/services/firebase';
 import GameStatusDisplay from '@/components/GameStatusDisplay.vue';
 import PlayerList from '@/components/PlayerList.vue';
+import HostControls from '@/components/HostControls.vue';
+import ChatDisplay from '@/components/ChatDisplay.vue';
 
 const route = useRoute();
 const gameStore = useGameStore();
+const currentUser = ref(null);
+const messages = ref([]);
 
 // Create a reactive reference to the current game from the store.
 const game = computed(() => gameStore.currentGame);
+
+// Computed property to check if the current user is the host of the game.
+const isHost = computed(() => {
+  return game.value && currentUser.value && game.value.hostId === currentUser.value.uid;
+});
 
 // A computed property to safely get the current round's question
 const currentQuestion = computed(() => {
@@ -22,12 +37,16 @@ const currentQuestion = computed(() => {
 });
 
 // When the component is mounted, subscribe to the game's real-time updates.
-onMounted(() => {
+onMounted(async () => {
+  currentUser.value = await getCurrentUser();
   const gameId = route.params.id;
   if (gameId) {
     // We subscribe to the listener and provide the store's action as the callback.
     // This directly pipes the real-time data into our central state.
     subscribeToGame(gameId, gameStore.setCurrentGame);
+    subscribeToMessages(gameId, (newMessages) => {
+      messages.value = newMessages;
+    });
   } else {
     console.error('No game ID found in the route.');
     // Here you might want to redirect the user back to the lobby
@@ -36,8 +55,9 @@ onMounted(() => {
 
 // When the component is unmounted (e.g., user navigates away), clean up.
 onUnmounted(() => {
-  // Unsubscribe from the Firestore listener to prevent memory leaks.
+  // Unsubscribe from all Firestore listeners to prevent memory leaks.
   unsubscribeFromGame();
+  unsubscribeFromMessages();
   // Clear the current game data from the store.
   gameStore.leaveGame();
 });
@@ -46,7 +66,13 @@ onUnmounted(() => {
 <template>
   <div v-if="game" class="game-room-layout">
     <aside class="side-panel">
-      <PlayerList :players="game.players" :host-id="game.hostId" />
+      <PlayerList :players="game.players" :host-id="game.hostId" :status="game.status" />
+      <HostControls 
+        v-if="isHost"
+        :status="game.status"
+        :player-count="game.players.length"
+        @start-game="gameStore.startGame()"
+      />
     </aside>
     
     <main class="main-content">
@@ -55,7 +81,7 @@ onUnmounted(() => {
         :current-round="game.currentRound"
         :question="currentQuestion"
       />
-      <!-- The Chat Display and other components will go here later -->
+      <ChatDisplay :messages="messages" :players="game.players" />
     </main>
   </div>
   <div v-else class="loading-container">
@@ -78,6 +104,8 @@ onUnmounted(() => {
 
 .main-content {
   /* Styling for the main game area */
+  display: flex;
+  flex-direction: column;
 }
 
 .loading-container {

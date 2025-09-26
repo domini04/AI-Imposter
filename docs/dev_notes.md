@@ -57,3 +57,13 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 **Reasoning**: This layered approach creates a clean, one-way data flow (`Firestore -> Listener Service -> Pinia Store -> UI Components`) and a clear separation of concerns.
 *   **Pinia** provides a predictable, centralized container for our state, simplifying debugging and making our components purely presentational.
 *   The **dedicated listener service** encapsulates the complexity of managing real-time subscriptions. This prevents memory leaks by ensuring subscriptions are properly handled during the component lifecycle (`onMounted`/`onUnmounted`) and keeps our UI components decoupled from the Firebase SDK, making the codebase more modular and maintainable.
+
+### **September 26, 2025 - Simultaneous Nickname Reveal Strategy**
+
+**Issue**: An information leak was identified in the game's pre-start phase. Human players were assigned a nickname upon joining the lobby, while the AI player was only assigned a name when the game officially started. This would allow human players to easily identify the AI by simply seeing which new player appeared at the start of the match, undermining the core social deduction mechanic.
+
+**Decision**: We will implement a "Simultaneous Nickname Reveal" strategy to close this exploit, involving both backend and frontend changes:
+1.  **Backend Logic**: The backend service will be modified to **not** assign any `gameDisplayName` when a human player joins a game. Instead, the "Start Game" function will be solely responsible for generating and assigning unique, random nicknames to *all* participants (human and AI) in a single, atomic operation at the moment the game's status transitions to `in_progress`.
+2.  **Frontend UI**: The `PlayerList.vue` component will be made state-aware. While the game `status` is "waiting," it will display generic, anonymous labels (e.g., "Player 1," "Player 2"). Once the game starts and the real nicknames are populated by the backend, the component will then display the `gameDisplayName` for all players.
+
+**Reasoning**: This approach completely eliminates the information leak and prevents meta-gaming. It ensures all players start on an equal footing and adds a moment of reveal when the game begins, enhancing the user experience. By making the backend the single source of truth for the simultaneous assignment, we guarantee fairness and consistency.
