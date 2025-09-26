@@ -45,3 +45,15 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 4.  The backend will then validate this request by comparing the current server time to the stored `roundEndTime` before executing the state transition, ensuring the action is legitimate.
 
 **Reasoning**: This decision was made after considering two options: the chosen approach and a more complex, production-grade solution using serverless scheduled jobs (e.g., Google Cloud Tasks and Cloud Functions). While the serverless approach offers guaranteed execution independent of client activity, it introduces significant infrastructural and local development complexity. The chosen client-triggered method maintains server authority (by validating the timestamp) and is far simpler to implement for an MVP, requiring no additional cloud services. The acceptable trade-off is that the game state will not advance if all players disconnect, which is a minor risk for the initial version of the game.
+
+### **September 26, 2025 - Frontend State & Real-time Data Architecture**
+
+**Issue**: The frontend requires a robust architecture to manage shared application state (like the current game data) and handle real-time, bi-directional data flow with Firestore without coupling the UI components directly to the data services.
+
+**Decision**: We will adopt a two-part architecture for frontend data management:
+1.  **Centralized State Management**: We will use **Pinia** as the official state management library. A central `useGameStore` will be the single source of truth for all shared state. All backend API calls will be orchestrated through Pinia actions, which call our `api.js` service.
+2.  **Dedicated Listener Service**: We will create a dedicated `services/game_listener.js` module. This service will be the only part of the application responsible for managing the real-time `onSnapshot` subscription to Firestore. It will push live data into the Pinia store via a store action, but will not interact with UI components directly.
+
+**Reasoning**: This layered approach creates a clean, one-way data flow (`Firestore -> Listener Service -> Pinia Store -> UI Components`) and a clear separation of concerns.
+*   **Pinia** provides a predictable, centralized container for our state, simplifying debugging and making our components purely presentational.
+*   The **dedicated listener service** encapsulates the complexity of managing real-time subscriptions. This prevents memory leaks by ensuring subscriptions are properly handled during the component lifecycle (`onMounted`/`onUnmounted`) and keeps our UI components decoupled from the Firebase SDK, making the codebase more modular and maintainable.

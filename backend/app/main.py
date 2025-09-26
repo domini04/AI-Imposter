@@ -1,3 +1,7 @@
+# This import must be first to ensure environment variables are loaded
+# before any other module that might need them (like firebase_service).
+from .core import config
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
