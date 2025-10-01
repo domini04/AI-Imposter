@@ -14,6 +14,7 @@ const isCreateModalVisible = ref(false);
 // Fetch the public games when the component is first mounted
 onMounted(() => {
   gameStore.fetchPublicGames();
+  gameStore.fetchModels();
 });
 
 const handleRefresh = () => {
@@ -35,6 +36,11 @@ const handleJoinGame = async (gameId) => {
 const handleCreateGame = () => {
   // This now just opens the modal
   isCreateModalVisible.value = true;
+};
+
+const resolveModelName = (modelId) => {
+  const model = gameStore.availableModels.find((m) => m.id === modelId);
+  return model ? model.display_name : `Model: ${modelId}`;
 };
 </script>
 
@@ -65,7 +71,8 @@ const handleCreateGame = () => {
         <div v-for="game in gameStore.publicGames" :key="game.gameId" class="game-card">
           <div class="game-details">
             <span class="language-tag">{{ game.language.toUpperCase() }}</span>
-            <span class="players">Players: {{ game.playerCount }} / 5</span>
+            <span class="players">Players: {{ game.playerCount }} / {{ game.maxPlayers }}</span>
+            <span v-if="game.aiModelId" class="model-tag">{{ resolveModelName(game.aiModelId) }}</span>
           </div>
           <button @click="handleJoinGame(game.gameId)" class="btn-join">Join Game →</button>
         </div>
@@ -182,5 +189,13 @@ const handleCreateGame = () => {
 
 .btn-join:hover {
   background-color: #218838;
+}
+
+.model-tag {
+  background-color: #f5f5f5;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.9rem;
+  color: #333;
 }
 </style>

@@ -106,7 +106,26 @@ Below are the detailed data structures for our Firestore collections.
       "voterId": "persistent_user_uid_1",
       "votedForId": "persistent_user_uid_2"
     }
-  ]
+  ],
+
+  "lastRoundResult": {
+    "round": 2,
+    "totalVotes": 3,
+    "votes": [
+      {
+        "targetId": "ai_c2ef...",
+        "targetName": "Silent Wolf",
+        "voteCount": 2,
+        "isImpostor": true
+      }
+    ],
+    "eliminatedPlayerId": "ai_c2ef...",
+    "eliminatedPlayerName": "Silent Wolf",
+    "eliminatedRole": "AI",
+    "summary": "Silent Wolf was eliminated (AI).",
+    "gameEnded": true,
+    "endReason": "AI count now matches or exceeds human count. AI win by parity."
+  }
 }
 ```
 

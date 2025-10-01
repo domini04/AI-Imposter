@@ -84,6 +84,10 @@ export const getPublicGames = () => {
   return request('/api/v1/games', 'GET');
 };
 
+export const getModels = () => {
+  return request('/api/v1/models', 'GET');
+};
+
 /**
  * Sends a request to the backend to create a new game.
  * @param {object} settings - The configuration for the new game.
@@ -124,4 +128,16 @@ export const startGame = (gameId) => {
  */
 export const castVote = (gameId, votedForId) => {
   return request(`/api/v1/games/${gameId}/vote`, 'POST', { votedForId });
+};
+
+export const submitAnswer = (gameId, answer) => {
+  return request(`/api/v1/games/${gameId}/submit-answer`, 'POST', { answer });
+};
+
+export const tallyAnswers = (gameId) => {
+  return request(`/api/v1/games/${gameId}/tally-answers`, 'POST');
+};
+
+export const tallyVotes = (gameId) => {
+  return request(`/api/v1/games/${gameId}/tally-votes`, 'POST');
 };

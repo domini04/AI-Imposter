@@ -8,10 +8,17 @@ export const useGameStore = defineStore('game', {
   state: () => ({
     /** @type {Array<Object>} A list of public games available to join. */
     publicGames: [],
+    /** @type {Array<Object>} The set of AI models fetched from the backend. */
+    availableModels: [],
     /** @type {Object|null} The full real-time state of the current game. */
     currentGame: null,
     /** @type {boolean} A flag to indicate when an API call is in progress. */
     isLoading: false,
+    /** @type {string|null} Tracks status message for answer submission. */
+    answerStatus: null,
+    answerError: null,
+    voteStatus: null,
+    voteError: null,
   }),
 
   /**
@@ -47,6 +54,18 @@ export const useGameStore = defineStore('game', {
       }
     },
 
+    async fetchModels() {
+      this.isLoading = true;
+      try {
+        const models = await api.getModels();
+        this.availableModels = models;
+      } catch (error) {
+        console.error('Failed to fetch models:', error);
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
     /**
      * Creates a new game.
      * @param {object} settings - The settings for the new game.
@@ -63,6 +82,43 @@ export const useGameStore = defineStore('game', {
         return null;
       } finally {
         this.isLoading = false;
+      }
+    },
+
+    async submitAnswer(text) {
+      if (!this.currentGame) return;
+      const gameId = this.currentGame.gameId;
+
+      this.answerStatus = 'submitting';
+      this.answerError = null;
+
+      try {
+        await api.submitAnswer(gameId, text);
+        this.answerStatus = 'submitted';
+      } catch (error) {
+        console.error('Failed to submit answer:', error);
+        this.answerError = error.message || 'Failed to submit answer.';
+        this.answerStatus = 'error';
+      }
+    },
+
+    async tallyAnswers() {
+      if (!this.currentGame) return;
+      try {
+        await api.tallyAnswers(this.currentGame.gameId);
+      } catch (error) {
+        console.error('Failed to tally answers:', error);
+        throw error;
+      }
+    },
+
+    async tallyVotes() {
+      if (!this.currentGame) return;
+      try {
+        await api.tallyVotes(this.currentGame.gameId);
+      } catch (error) {
+        console.error('Failed to tally votes:', error);
+        throw error;
       }
     },
 
@@ -104,13 +160,18 @@ export const useGameStore = defineStore('game', {
      * @param {string} votedForId - The UID of the player to vote for.
      */
     async castVote(votedForId) {
-        if (!this.currentGame) return;
-        // No need to set isLoading for a quick action like voting
-        try {
-            await api.castVote(this.currentGame.gameId, votedForId);
-        } catch (error) {
-            console.error('Failed to cast vote:', error);
-        }
+      if (!this.currentGame) return;
+      this.voteStatus = 'submitting';
+      this.voteError = null;
+
+      try {
+        await api.castVote(this.currentGame.gameId, votedForId);
+        this.voteStatus = 'submitted';
+      } catch (error) {
+        console.error('Failed to cast vote:', error);
+        this.voteError = error.message || 'Failed to cast vote.';
+        this.voteStatus = 'error';
+      }
     },
 
     /**
@@ -118,6 +179,12 @@ export const useGameStore = defineStore('game', {
      * @param {object} gameData - The latest game data from Firestore.
      */
     setCurrentGame(gameData) {
+      if (this.currentGame && gameData?.currentRound !== this.currentGame.currentRound) {
+        this.answerStatus = null;
+        this.answerError = null;
+        this.voteStatus = null;
+        this.voteError = null;
+      }
       this.currentGame = gameData;
     },
 
@@ -126,6 +193,10 @@ export const useGameStore = defineStore('game', {
      */
     leaveGame() {
       this.currentGame = null;
+      this.answerStatus = null;
+      this.answerError = null;
+      this.voteStatus = null;
+      this.voteError = null;
     },
   },
 });

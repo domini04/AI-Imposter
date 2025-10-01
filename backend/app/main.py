@@ -38,3 +38,5 @@ def ping():
 # prefixed with /api/v1/games
 from app.api.endpoints import games
 app.include_router(games.router, prefix="/api/v1/games", tags=["Games"])
+from app.api.endpoints import models
+app.include_router(models.router, prefix="/api/v1/models", tags=["Models"])

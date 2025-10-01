@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useGameStore } from '@/stores/game';
 import { useRouter } from 'vue-router';
 
@@ -21,9 +21,23 @@ const gameSettings = ref({
   language: 'en',
   aiCount: 1,
   privacy: 'public',
+  aiModelId: null,
 });
 
 const isCreating = ref(false);
+const modelsLoading = ref(false);
+
+onMounted(async () => {
+  if (!gameStore.availableModels.length) {
+    modelsLoading.value = true;
+    await gameStore.fetchModels();
+    modelsLoading.value = false;
+  }
+
+  if (gameStore.availableModels.length && !gameSettings.value.aiModelId) {
+    gameSettings.value.aiModelId = gameStore.availableModels[0].id;
+  }
+});
 
 const handleCreate = async () => {
   isCreating.value = true;
@@ -75,6 +89,27 @@ const handleCancel = () => {
           </div>
         </div>
 
+        <!-- Model Selection -->
+        <div class="form-group">
+          <label>AI Model</label>
+          <div v-if="modelsLoading" class="loading">Loading models...</div>
+          <div v-else-if="!gameStore.availableModels.length" class="empty-state">
+            <p>No AI models available. Please try again later.</p>
+          </div>
+          <div v-else class="model-list">
+            <label v-for="model in gameStore.availableModels" :key="model.id" class="model-option">
+              <input
+                type="radio"
+                v-model="gameSettings.aiModelId"
+                :value="model.id"
+              />
+              <span class="model-name">{{ model.display_name }}</span>
+              <span class="model-provider">({{ model.provider.toUpperCase() }})</span>
+              <p class="model-description">{{ model.description }}</p>
+            </label>
+          </div>
+        </div>
+
         <!-- Privacy Selection -->
         <div class="form-group">
           <label>Privacy</label>
@@ -93,7 +128,7 @@ const handleCancel = () => {
           <button type="button" @click="handleCancel" class="btn-secondary" :disabled="isCreating">
             Cancel
           </button>
-          <button type="submit" class="btn-primary" :disabled="isCreating">
+          <button type="submit" class="btn-primary" :disabled="isCreating || !gameSettings.aiModelId">
             {{ isCreating ? 'Creating...' : 'Create Game' }}
           </button>
         </div>
@@ -184,5 +219,52 @@ button {
 }
 .btn-secondary:hover {
   background-color: #e0e0e0;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.model-option {
+  display: block;
+  padding: 1rem;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.model-option:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.model-option input {
+  margin-right: 0.75rem;
+}
+
+.model-name {
+  font-weight: bold;
+}
+
+.model-provider {
+  margin-left: 0.5rem;
+  color: #555;
+}
+
+.model-description {
+  margin: 0.5rem 0 0;
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.loading {
+  color: #777;
+}
+
+.empty-state {
+  color: #a00;
+  font-size: 0.95rem;
 }
 </style>

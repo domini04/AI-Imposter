@@ -76,7 +76,7 @@ def vote_endpoint(
         game_service.submit_vote(
             game_id=game_id,
             voter_uid=user_uid,
-            target_uid=request.targetPlayerId
+            target_uid=request.votedForId
         )
         return
     except ValueError as e:
@@ -210,8 +210,8 @@ def create_game_endpoint(
         # Pass the Pydantic model directly to the service layer.
         game_id = game_service.create_game(host_uid=host_uid, settings=request_body)
 
-        # Return the ID of the new game in the response.
-        return CreateGameResponse(gameId=game_id)
+        # Return the ID of the new game along with the selected model.
+        return CreateGameResponse(gameId=game_id, aiModelId=request_body.aiModelId)
     except Exception as e:
         # A generic error handler for any unexpected issues.
         raise HTTPException(

@@ -86,12 +86,7 @@ All endpoints listed below are protected. The frontend client must include a val
       "votedForId": "uid_of_player_being_voted_for"
     }
     ```
-*   **Success Response (200 OK):**
-    ```json
-    {
-      "message": "Vote cast successfully."
-    }
-    ```
+*   **Success Response (204 No Content).**
 
 ---
 
@@ -130,13 +125,13 @@ All endpoints listed below are protected. The frontend client must include a val
 ### In-Game Orchestration
 
 - **`POST /games/{gameId}/tally-answers`**
-  - **Description**: Triggered by a client when the answer submission timer expires. The backend validates the time and transitions the game state from `ANSWER_SUBMISSION` to `VOTING`. This includes moving all answers from the `pending_messages` subcollection to a publicly visible location.
+  - **Description**: Moves all answers from the hidden `pending_messages` subcollection to the public `messages` log and advances the game. Hosts normally rely on the timer-driven auto-trigger, but this endpoint remains available as a fallback.
   - **Authentication**: Required (Firebase ID Token).
   - **Request Body**: None.
   - **Response**: `204 No Content` on success.
 
 - **`POST /games/{gameId}/tally-votes`**
-  - **Description**: Triggered by a client when the voting timer expires. The backend validates the time, tallies the votes, processes eliminations, and transitions the game to the next round or ends the game.
+  - **Description**: Tallies votes, applies eliminations, and transitions to the next round or ends the game. With the new flow, the backend also auto-triggers this endpoint once all human players have voted; the route is kept for manual recovery.
   - **Authentication**: Required (Firebase ID Token).
   - **Request Body**: None.
   - **Response**: `204 No Content` on success.

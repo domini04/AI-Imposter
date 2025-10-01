@@ -1,11 +1,54 @@
 from firebase_admin import firestore
 from app.services.firebase_service import get_firestore_client
 from app.models.game import CreateGameRequest
+from app.services import model_catalog
 from app.utils import helpers
 import datetime
 import random
 import uuid
 from collections import Counter
+
+
+QUESTION_BANK = {
+    "en": [
+        "What is your favorite weekend activity?",
+        "Describe your ideal vacation destination.",
+        "What was the last book you enjoyed reading?",
+        "If you could learn any new skill instantly, what would it be?",
+        "What is a food you never get tired of?",
+    ],
+    "ko": [
+        "주말에 가장 좋아하는 활동은 무엇인가요?",
+        "이상적인 휴가지에 대해 설명해 주세요.",
+        "최근에 재미있게 읽은 책은 무엇인가요?",
+        "새로운 기술을 바로 배울 수 있다면 무엇을 배우고 싶나요?",
+        "질리지 않고 계속 먹을 수 있는 음식은 무엇인가요?",
+    ],
+}
+
+AI_PLACEHOLDER_TEMPLATE = "This is a template message for testing round {round}."
+
+
+def _select_round_question(language: str) -> str:
+    pool = QUESTION_BANK.get(language, QUESTION_BANK["en"])
+    return random.choice(pool)
+
+
+def _enqueue_ai_placeholder_answers(game_ref, ai_players, round_number):
+    db = get_firestore_client()
+    pending_ref = game_ref.collection("pending_messages")
+    batch = db.batch()
+    for ai in ai_players:
+        doc_ref = pending_ref.document()
+        batch.set(doc_ref, {
+            "authorId": ai.get("uid"),
+            "senderId": ai.get("uid"),
+            "senderName": ai.get("gameDisplayName"),
+            "content": AI_PLACEHOLDER_TEMPLATE.format(round=round_number),
+            "roundNumber": round_number,
+            "submittedAt": firestore.SERVER_TIMESTAMP,
+        })
+    batch.commit()
 
 def create_game(host_uid: str, settings: CreateGameRequest) -> str:
     """
@@ -19,10 +62,11 @@ def create_game(host_uid: str, settings: CreateGameRequest) -> str:
         The ID of the newly created game document.
     """
     db = get_firestore_client()
-    
-    # Generate a random name for the host for this game.
-    # In a real implementation, this would come from a helper function.
-    host_game_name = "Clever Cat" # Placeholder
+
+    # Validate that the requested AI model is in our catalog.
+    supported_models = {model["id"] for model in model_catalog.list_models()}
+    if settings.aiModelId not in supported_models:
+        raise ValueError("Requested AI model is not supported.")
 
     # Define the initial structure of the game document using the Pydantic model
     new_game_data = {
@@ -31,6 +75,7 @@ def create_game(host_uid: str, settings: CreateGameRequest) -> str:
         "language": settings.language,
         "aiCount": settings.aiCount,
         "privacy": settings.privacy,
+        "aiModelId": settings.aiModelId,
         "createdAt": firestore.SERVER_TIMESTAMP,
         "currentRound": 0,
         "rounds": [],
@@ -42,7 +87,10 @@ def create_game(host_uid: str, settings: CreateGameRequest) -> str:
             }
         ],
         "readyPlayerIds": [],
-        "votes": []
+        "votes": [],
+        "impostorInfo": {
+            "aiModelId": settings.aiModelId
+        }
     }
 
     # Add the new document to the 'game_rooms' collection
@@ -72,7 +120,8 @@ def list_public_games():
             "gameId": game.id,
             "language": game_data.get("language"),
             "playerCount": len(game_data.get("players", [])),
-            "maxPlayers": 4 # As per our game rules
+            "maxPlayers": 4, # As per our game rules
+            "aiModelId": game_data.get("aiModelId", "unknown")
         })
         
     return public_games
@@ -183,8 +232,10 @@ def start_game(game_id: str, user_uid: str):
     # Set timers for the first round
     now = datetime.datetime.now(datetime.timezone.utc)
     # Using a short duration for easier testing; this would be longer in production.
-    answer_duration = datetime.timedelta(minutes=1) 
+    answer_duration = datetime.timedelta(seconds=30) 
     end_time = now + answer_duration
+
+    question = _select_round_question(game_data.get("language", "en"))
 
     game_ref.update({
         "players": all_participants,
@@ -192,160 +243,210 @@ def start_game(game_id: str, user_uid: str):
         "roundPhase": "ANSWER_SUBMISSION", # Add the new granular state
         "currentRound": 1, # Start the first round
         "roundStartTime": now,
-        "roundEndTime": end_time
+        "roundEndTime": end_time,
+        "impostorInfo": {
+            **game_data.get("impostorInfo", {}),
+            "aiModelId": game_data.get("aiModelId")
+        },
+        "rounds": [
+            {
+                "round": 1,
+                "question": question,
+            }
+        ]
     })
+
+    if ai_players:
+        _enqueue_ai_placeholder_answers(game_ref, ai_players, 1)
 
 def tally_answers(game_id: str):
     """
     Transitions the game from ANSWER_SUBMISSION to VOTING.
     This is triggered by a client after the round timer expires. The function
     validates the time, moves pending messages to the main messages collection,
-    and sets up the timer for the voting phase.
+    and sets up the timer for the next phase.
     """
     db = get_firestore_client()
     game_ref = db.collection("game_rooms").document(game_id)
 
-    @firestore.transactional
-    def _tally_answers_in_transaction(transaction, game_ref):
-        game_doc = game_ref.get(transaction=transaction)
-        if not game_doc.exists:
-            raise ValueError("Game not found.")
+    game_doc = game_ref.get()
+    if not game_doc.exists:
+        raise ValueError("Game not found.")
 
-        game_data = game_doc.to_dict()
+    game_data = game_doc.to_dict()
 
-        # --- Validation ---
-        if game_data.get("status") != "in_progress":
-            raise ValueError("This game is not currently in progress.")
-        
-        # This check makes the function idempotent. If it's already been tallied, do nothing.
-        if game_data.get("roundPhase") != "ANSWER_SUBMISSION":
-            return
-            
-        # Server-side time validation
-        round_end_time = game_data.get("roundEndTime")
-        if round_end_time and datetime.datetime.now(datetime.timezone.utc) < round_end_time.replace(tzinfo=datetime.timezone.utc):
-            raise ValueError("Answer submission time has not ended yet.")
+    if game_data.get("status") != "in_progress":
+        raise ValueError("This game is not currently in progress.")
 
-        # --- Logic ---
-        pending_messages_ref = game_ref.collection("pending_messages")
-        pending_messages = list(pending_messages_ref.stream(transaction=transaction))
+    if game_data.get("roundPhase") != "ANSWER_SUBMISSION":
+        return
 
+    round_end_time = game_data.get("roundEndTime")
+    if round_end_time and datetime.datetime.now(datetime.timezone.utc) < round_end_time.replace(tzinfo=datetime.timezone.utc):
+        raise ValueError("Answer submission time has not ended yet.")
+
+    pending_messages_ref = game_ref.collection("pending_messages")
+    pending_messages = list(pending_messages_ref.stream())
+
+    if pending_messages:
+        batch = db.batch()
         messages_ref = game_ref.collection("messages")
-        
         for msg in pending_messages:
-            transaction.set(messages_ref.document(msg.id), msg.to_dict())
-            transaction.delete(msg.reference)
+            msg_data = msg.to_dict()
+            normalized = {
+                "text": msg_data.get("content"),
+                "senderId": msg_data.get("senderId") or msg_data.get("authorId"),
+                "senderName": msg_data.get("senderName"),
+                "roundNumber": msg_data.get("roundNumber", game_data.get("currentRound", 0)),
+                "timestamp": msg_data.get("submittedAt", firestore.SERVER_TIMESTAMP),
+            }
+            messages_doc = messages_ref.document(msg.id)
+            batch.set(messages_doc, normalized)
+            batch.delete(msg.reference)
+        batch.commit()
 
-        # --- State Transition ---
-        now = datetime.datetime.now(datetime.timezone.utc)
-        current_round = game_data.get("currentRound", 0)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    current_round = game_data.get("currentRound", 0)
 
-        # If it's the end of Round 1, skip voting and go to Round 2 answers
-        if current_round == 1:
-            answer_duration = datetime.timedelta(minutes=1)
-            next_round_end_time = now + answer_duration
-            transaction.update(game_ref, {
-                "roundPhase": "ANSWER_SUBMISSION",
-                "currentRound": current_round + 1,
-                "roundStartTime": now,
-                "roundEndTime": next_round_end_time
-            })
-        else: # For Rounds 2 and 3, proceed to voting
-            vote_duration = datetime.timedelta(seconds=90)
-            vote_end_time = now + vote_duration
-            
-            transaction.update(game_ref, {
-                "roundPhase": "VOTING",
-                "roundStartTime": now,
-                "roundEndTime": vote_end_time
-            })
+    if current_round == 1:
+        answer_duration = datetime.timedelta(seconds=30)
+        next_round_end_time = now + answer_duration
+        next_round = current_round + 1
+        question = _select_round_question(game_data.get("language", "en"))
 
-    transaction = db.transaction()
-    _tally_answers_in_transaction(transaction, game_ref)
+        game_ref.update({
+            "roundPhase": "ANSWER_SUBMISSION",
+            "currentRound": next_round,
+            "roundStartTime": now,
+            "roundEndTime": next_round_end_time,
+            "rounds": firestore.ArrayUnion([
+                {"round": next_round, "question": question}
+            ])
+        })
+
+        ai_players = [p for p in game_data.get("players", []) if p.get("isImpostor")]
+        if ai_players:
+            _enqueue_ai_placeholder_answers(game_ref, ai_players, next_round)
+    else:
+        game_ref.update({
+            "roundPhase": "VOTING",
+            "roundStartTime": now,
+            "roundEndTime": None
+        })
     
 def tally_votes(game_id: str):
-    """
-    Counts votes, processes eliminations, checks for win/loss conditions,
-    and advances the game state.
-    """
+    """Counts votes, applies eliminations, and advances to the next phase."""
     db = get_firestore_client()
     game_ref = db.collection("game_rooms").document(game_id)
 
-    @firestore.transactional
-    def _tally_votes_in_transaction(transaction, game_ref):
-        game_doc = game_ref.get(transaction=transaction)
-        if not game_doc.exists:
-            raise ValueError("Game not found.")
+    game_doc = game_ref.get()
+    if not game_doc.exists:
+        raise ValueError("Game not found.")
 
-        game_data = game_doc.to_dict()
+    game_data = game_doc.to_dict()
 
-        # --- Validation ---
-        if game_data.get("status") != "in_progress":
-            raise ValueError("This game is not currently in progress.")
-        
-        if game_data.get("roundPhase") != "VOTING":
-            return # Idempotency check
+    if game_data.get("status") != "in_progress":
+        raise ValueError("This game is not currently in progress.")
 
-        # Server-side time validation
-        round_end_time = game_data.get("roundEndTime")
-        if round_end_time and datetime.datetime.now(datetime.timezone.utc) < round_end_time.replace(tzinfo=datetime.timezone.utc):
-            raise ValueError("Voting time has not ended yet.")
+    if game_data.get("roundPhase") != "VOTING":
+        return
 
-        # --- Vote Counting ---
-        current_round = game_data.get("currentRound", 0)
-        votes_this_round = [v for v in game_data.get("votes", []) if v.get("round") == current_round]
-        
-        if not votes_this_round:
-            # If no one voted, proceed to the next round without elimination
-            pass
-        else:
-            vote_counts = Counter(v["targetId"] for v in votes_this_round)
-            most_votes = vote_counts.most_common(2)
-            
-            # Eliminate player only if there's no tie for the most votes
-            if len(most_votes) == 1 or (len(most_votes) > 1 and most_votes[0][1] > most_votes[1][1]):
-                player_to_eliminate_uid = most_votes[0][0]
-                for player in game_data["players"]:
-                    if player["uid"] == player_to_eliminate_uid:
-                        player["isEliminated"] = True
-                        break
+    current_round = game_data.get("currentRound", 0)
+    votes_this_round = [v for v in game_data.get("votes", []) if v.get("round") == current_round]
 
-        # --- Win/Loss Condition Check ---
-        active_players = [p for p in game_data["players"] if not p.get("isEliminated")]
-        active_impostors = [p for p in active_players if p.get("isImpostor")]
-        active_humans = [p for p in active_players if not p.get("isImpostor")]
+    vote_counts = Counter(v["targetId"] for v in votes_this_round)
+    votes_summary = []
+    for target_id, count in vote_counts.most_common():
+        target_player = next((p for p in game_data["players"] if p["uid"] == target_id), None)
+        votes_summary.append({
+            "targetId": target_id,
+            "targetName": target_player.get("gameDisplayName") if target_player else "Unknown",
+            "voteCount": count,
+            "isImpostor": target_player.get("isImpostor") if target_player else None,
+        })
 
-        update_payload = {}
-        game_is_over = False
-        if len(active_impostors) == 0:
-            update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "humans"})
-            game_is_over = True
-        elif len(active_impostors) >= len(active_humans):
-            update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
-            game_is_over = True
-        elif current_round >= 3: # Max rounds reached
-            update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
-            game_is_over = True
+    eliminated_player = None
+    eliminated_role = None
+    if votes_this_round:
+        most_votes = vote_counts.most_common(2)
+        if len(most_votes) == 1 or (len(most_votes) > 1 and most_votes[0][1] > most_votes[1][1]):
+            player_to_eliminate_uid = most_votes[0][0]
+            for player in game_data["players"]:
+                if player["uid"] == player_to_eliminate_uid:
+                    player["isEliminated"] = True
+                    eliminated_player = player
+                    eliminated_role = "AI" if player.get("isImpostor") else "Human"
+                    break
 
-        # --- State Transition ---
-        if not game_is_over:
-            now = datetime.datetime.now(datetime.timezone.utc)
-            answer_duration = datetime.timedelta(minutes=1)
-            next_round_end_time = now + answer_duration
-            
-            update_payload.update({
-                "currentRound": current_round + 1,
-                "roundPhase": "ANSWER_SUBMISSION",
-                "roundStartTime": now,
-                "roundEndTime": next_round_end_time
-            })
-        
-        # Always update the players list in case of elimination
-        update_payload["players"] = game_data["players"]
-        transaction.update(game_ref, update_payload)
+    active_players = [p for p in game_data["players"] if not p.get("isEliminated")]
+    active_impostors = [p for p in active_players if p.get("isImpostor")]
+    active_humans = [p for p in active_players if not p.get("isImpostor")]
 
-    transaction = db.transaction()
-    _tally_votes_in_transaction(transaction, game_ref)
+    update_payload = {
+        "players": game_data["players"],
+    }
+
+    if votes_this_round:
+        summary_text = (
+            f"{eliminated_player.get('gameDisplayName')} was eliminated ({eliminated_role})."
+            if eliminated_player else "Votes tied. No one was eliminated."
+        )
+    else:
+        summary_text = "No votes were cast this round."
+
+    game_is_over = False
+    end_reason = None
+    if len(active_impostors) == 0:
+        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "humans"})
+        game_is_over = True
+        end_reason = "All impostors have been eliminated. Humans win!"
+    elif len(active_impostors) >= len(active_humans):
+        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
+        game_is_over = True
+        end_reason = "AI count now matches or exceeds human count. AI win by parity."
+    elif current_round >= 3:
+        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
+        game_is_over = True
+        end_reason = "Maximum rounds reached with surviving impostors. AI win."
+
+    if not game_is_over:
+        now = datetime.datetime.now(datetime.timezone.utc)
+        answer_duration = datetime.timedelta(seconds=30)
+        next_round_end_time = now + answer_duration
+        next_round = current_round + 1
+        question = _select_round_question(game_data.get("language", "en"))
+
+        update_payload.update({
+            "currentRound": next_round,
+            "roundPhase": "ANSWER_SUBMISSION",
+            "roundStartTime": now,
+            "roundEndTime": next_round_end_time,
+            "rounds": firestore.ArrayUnion([
+                {"round": next_round, "question": question}
+            ])
+        })
+
+        ai_players = [p for p in game_data.get("players", []) if p.get("isImpostor")]
+        if ai_players:
+            _enqueue_ai_placeholder_answers(game_ref, ai_players, next_round)
+
+    round_result = {
+        "round": current_round,
+        "totalVotes": len(votes_this_round),
+        "votes": votes_summary,
+        "eliminatedPlayerId": eliminated_player.get("uid") if eliminated_player else None,
+        "eliminatedPlayerName": eliminated_player.get("gameDisplayName") if eliminated_player else None,
+        "eliminatedRole": eliminated_role,
+        "summary": summary_text,
+        "gameEnded": game_is_over,
+    }
+
+    if end_reason:
+        round_result["endReason"] = end_reason
+
+    update_payload["lastRoundResult"] = round_result
+
+    game_ref.update(update_payload)
 
 def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     """
@@ -368,10 +469,9 @@ def submit_vote(game_id: str, voter_uid: str, target_uid: str):
 
     game_data = game_doc.to_dict()
 
-    # --- Validation ---
     if game_data.get("status") != "in_progress":
         raise ValueError("This game is not currently in progress.")
-        
+
     if game_data.get("roundPhase") != "VOTING":
         raise ValueError("It is not currently time to vote.")
 
@@ -390,7 +490,6 @@ def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     if any(v["voterId"] == voter_uid and v.get("round") == current_round for v in votes):
         raise ValueError("You have already voted in this round.")
 
-    # --- Logic ---
     new_vote = {
         "voterId": voter_uid,
         "targetId": target_uid,
@@ -400,6 +499,13 @@ def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     game_ref.update({
         "votes": firestore.ArrayUnion([new_vote])
     })
+
+    total_required_votes = sum(1 for p in players if not p.get("isEliminated") and not p.get("isImpostor"))
+    votes_this_round = [v for v in votes if v.get("round") == current_round]
+    votes_this_round.append(new_vote)
+
+    if total_required_votes == 0 or len(votes_this_round) >= total_required_votes:
+        tally_votes(game_id)
 
 def submit_answer(game_id: str, user_uid: str, answer: str):
     """
@@ -435,15 +541,22 @@ def submit_answer(game_id: str, user_uid: str, answer: str):
         
     # Store the answer in the pending_messages subcollection
     pending_messages_ref = game_ref.collection("pending_messages")
-    
-    # Check if the player has already submitted an answer
-    existing_answer_query = pending_messages_ref.where("authorId", "==", user_uid).limit(1).get()
+
+    current_round = game_data.get("currentRound", 0)
+    existing_answer_query = pending_messages_ref.where("authorId", "==", user_uid).where("roundNumber", "==", current_round).limit(1).get()
     if existing_answer_query:
         raise ValueError("You have already submitted an answer for this round.")
         
+    player_entry = next((p for p in players if p["uid"] == user_uid), None)
+    if not player_entry:
+        raise ValueError("Player not found in this game.")
+
     new_answer = {
         "authorId": user_uid,
+        "senderId": user_uid,
+        "senderName": player_entry.get("gameDisplayName"),
         "content": answer,
+        "roundNumber": current_round,
         "submittedAt": firestore.SERVER_TIMESTAMP
     }
     

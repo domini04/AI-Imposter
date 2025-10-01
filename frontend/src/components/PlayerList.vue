@@ -11,7 +11,11 @@ defineProps({
   status: {
     type: String,
     required: true,
-  }
+  },
+  currentUserId: {
+    type: String,
+    default: null,
+  },
 });
 </script>
 
@@ -20,7 +24,10 @@ defineProps({
     <h3>Players ({{ players.length }})</h3>
     <ul class="player-list">
       <li v-for="(player, index) in players" :key="player.uid" class="player-item">
-        <span class="player-name">
+        <span
+          class="player-name"
+          :class="{ 'current-user': player.uid === currentUserId }"
+        >
           <template v-if="status === 'waiting'">
             Player {{ index + 1 }}
           </template>
@@ -28,7 +35,13 @@ defineProps({
             {{ player.gameDisplayName }}
           </template>
         </span>
-        <span v-if="player.uid === hostId" class="host-tag" title="Game Host">👑</span>
+        <span
+          v-if="status === 'waiting' && player.uid === hostId"
+          class="host-tag"
+          title="Game Host"
+        >
+          👑
+        </span>
       </li>
     </ul>
   </aside>
@@ -70,5 +83,10 @@ h3 {
 
 .host-tag {
   font-size: 1.2rem;
+}
+
+.current-user {
+  color: #0d47a1;
+  font-weight: bold;
 }
 </style>

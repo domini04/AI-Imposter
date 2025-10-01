@@ -20,11 +20,12 @@ const groupedMessages = computed(() => {
     if (!groups[round]) {
       groups[round] = [];
     }
-    // Let's find the player's current display name for the message
-    const player = props.players.find(p => p.uid === message.senderId);
+    const senderId = message.senderId || message.authorId;
+    const player = props.players.find(p => p.uid === senderId);
     groups[round].push({
       ...message,
-      senderName: player ? player.gameDisplayName : 'Unknown',
+      senderName: player ? player.gameDisplayName : (message.senderName || 'Unknown'),
+      text: message.text || message.content || '',
     });
   }
   return groups;

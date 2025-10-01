@@ -1,7 +1,8 @@
 <script setup>
 import { computed } from 'vue';
 
-const MIN_PLAYERS = 2;
+const MIN_PLAYERS = 1;
+//TODO: temporarily set to 1 to allow for testing with only one player. Change to 2 before merging.
 
 const props = defineProps({
   status: {
@@ -12,9 +13,17 @@ const props = defineProps({
     type: Number,
     required: true,
   },
+  roundPhase: {
+    type: String,
+    default: null,
+  },
+  isTallying: {
+    type: Boolean,
+    default: false,
+  }
 });
 
-const emit = defineEmits(['start-game']);
+const emit = defineEmits(['start-game', 'tally-answers', 'tally-votes']);
 
 const isStartDisabled = computed(() => {
   return props.playerCount < MIN_PLAYERS;
@@ -30,6 +39,14 @@ const statusMessage = computed(() => {
 const handleStartGame = () => {
   emit('start-game');
 };
+
+const handleTallyAnswers = () => {
+  emit('tally-answers');
+};
+
+const handleTallyVotes = () => {
+  emit('tally-votes');
+};
 </script>
 
 <template>
@@ -43,6 +60,12 @@ const handleStartGame = () => {
     >
       Start Game
     </button>
+  </div>
+  <div v-else class="host-controls">
+    <h4>Host Controls</h4>
+    <p v-if="roundPhase === 'ANSWER_SUBMISSION'">Answers will auto-reveal when time expires.</p>
+    <p v-else-if="roundPhase === 'VOTING'">Votes will auto-tally once the timer finishes.</p>
+    <p v-else>Waiting for next phase…</p>
   </div>
 </template>
 

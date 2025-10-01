@@ -30,18 +30,21 @@ export const subscribeToGame = (gameId, callback) => {
     gameDocRef,
     (docSnapshot) => {
       if (docSnapshot.exists()) {
-        // If the document exists, call the callback with its data.
-        // We also include the gameId for convenience.
-        callback({ gameId: docSnapshot.id, ...docSnapshot.data() });
+        const data = docSnapshot.data();
+        const normalized = {
+          gameId: docSnapshot.id,
+          ...data,
+          roundStartTime: data.roundStartTime ? data.roundStartTime.toDate().toISOString() : null,
+          roundEndTime: data.roundEndTime ? data.roundEndTime.toDate().toISOString() : null,
+        };
+        callback(normalized);
       } else {
-        // If the document is deleted or doesn't exist, call back with null.
         console.warn(`Game document ${gameId} does not exist.`);
         callback(null);
       }
     },
     (error) => {
       console.error(`Error listening to game ${gameId}:`, error);
-      // In case of an error, we might want to inform the user.
       callback(null);
     }
   );

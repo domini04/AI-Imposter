@@ -28,7 +28,8 @@ def test_create_game_successfully(mock_firestore_client):
     settings = CreateGameRequest(
         language="en", # FIX: Use the shortcode as required by the model
         aiCount=1,
-        privacy="public"
+        privacy="public",
+        aiModelId="gpt-5"
     )
     
     # Mock the return value of the .add() call to simulate a Firestore response
@@ -54,6 +55,21 @@ def test_create_game_successfully(mock_firestore_client):
     assert added_data['status'] == "waiting"
     assert len(added_data['players']) == 1
     assert added_data['players'][0]['uid'] == host_uid
+    assert added_data['aiModelId'] == "gpt-5"
+    assert added_data['impostorInfo']['aiModelId'] == "gpt-5"
+
+
+def test_create_game_with_unsupported_model_raises(mock_firestore_client):
+    host_uid = "host"
+    settings = CreateGameRequest(
+        language="en",
+        aiCount=1,
+        privacy="public",
+        aiModelId="unsupported-model"
+    )
+
+    with pytest.raises(ValueError, match="Requested AI model is not supported"):
+        game_service.create_game(host_uid, settings)
 
 def test_list_public_games_returns_formatted_list(mock_firestore_client):
     """
@@ -64,15 +80,18 @@ def test_list_public_games_returns_formatted_list(mock_firestore_client):
     mock_game_1 = MagicMock()
     mock_game_1.id = "game_1"
     mock_game_1.to_dict.return_value = {
-        "language": "English",
+        "language": "en",
         "players": [{}, {}] # 2 players
+        ,
+        "aiModelId": "claude-opus-4.1"
     }
     
     mock_game_2 = MagicMock()
     mock_game_2.id = "game_2"
     mock_game_2.to_dict.return_value = {
-        "language": "Korean",
-        "players": [{}] # 1 player
+        "language": "ko",
+        "players": [{}], # 1 player
+        "aiModelId": "gemini-2.5-pro"
     }
     
     # Simulate the query.stream() returning our two mock games
@@ -87,7 +106,9 @@ def test_list_public_games_returns_formatted_list(mock_firestore_client):
     assert public_games[0]['playerCount'] == 2
     assert public_games[1]['gameId'] == "game_2"
     assert public_games[1]['playerCount'] == 1
-    assert public_games[1]['language'] == "Korean"
+    assert public_games[1]['language'] == "ko"
+    assert public_games[0]['aiModelId'] == "claude-opus-4.1"
+    assert public_games[1]['aiModelId'] == "gemini-2.5-pro"
 
 def test_list_public_games_returns_empty_list_when_no_games(mock_firestore_client):
     """
