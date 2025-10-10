@@ -6,7 +6,11 @@ from app.utils import helpers
 import datetime
 import random
 import uuid
+import logging
 from collections import Counter
+from google.api_core.exceptions import FailedPrecondition, Aborted
+
+logger = logging.getLogger(__name__)
 
 
 QUESTION_BANK = {
@@ -450,7 +454,11 @@ def tally_votes(game_id: str):
 
 def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     """
-    Submits a player's vote for the current round.
+    Submits a player's vote for the current round using a Firestore transaction.
+
+    This function uses transactions to prevent race conditions when multiple players
+    vote simultaneously. The transaction ensures that exactly one request will trigger
+    vote tallying when all votes are in.
 
     Args:
         game_id: The ID of the game.
@@ -462,50 +470,90 @@ def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     """
     db = get_firestore_client()
     game_ref = db.collection("game_rooms").document(game_id)
-    game_doc = game_ref.get()
 
-    if not game_doc.exists:
-        raise ValueError("Game not found.")
+    @firestore.transactional
+    def _submit_vote_transaction(transaction):
+        """
+        Transactional function to read, validate, write vote, and determine if tallying needed.
 
-    game_data = game_doc.to_dict()
+        This function will be automatically retried by Firestore if a conflict is detected.
+        It must be idempotent (safe to run multiple times).
+        """
+        # Read game state within the transaction
+        game_doc = game_ref.get(transaction=transaction)
 
-    if game_data.get("status") != "in_progress":
-        raise ValueError("This game is not currently in progress.")
+        if not game_doc.exists:
+            raise ValueError("Game not found.")
 
-    if game_data.get("roundPhase") != "VOTING":
-        raise ValueError("It is not currently time to vote.")
+        game_data = game_doc.to_dict()
 
-    if voter_uid == target_uid:
-        raise ValueError("You cannot vote for yourself.")
+        # Validate game state
+        if game_data.get("status") != "in_progress":
+            raise ValueError("This game is not currently in progress.")
 
-    players = game_data.get("players", [])
-    player_uids = {p["uid"] for p in players}
-    if voter_uid not in player_uids:
-        raise ValueError("You are not a player in this game.")
-    if target_uid not in player_uids:
-        raise ValueError("The targeted player is not in this game.")
+        if game_data.get("roundPhase") != "VOTING":
+            raise ValueError("It is not currently time to vote.")
 
-    current_round = game_data.get("currentRound", 0)
-    votes = game_data.get("votes", [])
-    if any(v["voterId"] == voter_uid and v.get("round") == current_round for v in votes):
-        raise ValueError("You have already voted in this round.")
+        # Validate voter and target
+        if voter_uid == target_uid:
+            raise ValueError("You cannot vote for yourself.")
 
-    new_vote = {
-        "voterId": voter_uid,
-        "targetId": target_uid,
-        "round": current_round
-    }
+        players = game_data.get("players", [])
+        player_uids = {p["uid"] for p in players}
 
-    game_ref.update({
-        "votes": firestore.ArrayUnion([new_vote])
-    })
+        if voter_uid not in player_uids:
+            raise ValueError("You are not a player in this game.")
+        if target_uid not in player_uids:
+            raise ValueError("The targeted player is not in this game.")
 
-    total_required_votes = sum(1 for p in players if not p.get("isEliminated") and not p.get("isImpostor"))
-    votes_this_round = [v for v in votes if v.get("round") == current_round]
-    votes_this_round.append(new_vote)
+        # Check for duplicate votes
+        current_round = game_data.get("currentRound", 0)
+        votes = game_data.get("votes", [])
 
-    if total_required_votes == 0 or len(votes_this_round) >= total_required_votes:
-        tally_votes(game_id)
+        if any(v["voterId"] == voter_uid and v.get("round") == current_round for v in votes):
+            raise ValueError("You have already voted in this round.")
+
+        # Create and write the new vote
+        new_vote = {
+            "voterId": voter_uid,
+            "targetId": target_uid,
+            "round": current_round
+        }
+
+        transaction.update(game_ref, {
+            "votes": firestore.ArrayUnion([new_vote])
+        })
+
+        # Determine if tallying should occur
+        # This uses the snapshot data from the transaction read
+        total_required_votes = sum(1 for p in players if not p.get("isEliminated") and not p.get("isImpostor"))
+        votes_this_round = [v for v in votes if v.get("round") == current_round]
+        votes_this_round.append(new_vote)  # Include the vote we just added
+
+        # Return True if all required votes are in
+        return total_required_votes > 0 and len(votes_this_round) >= total_required_votes
+
+    # Execute the transaction
+    try:
+        transaction = db.transaction()
+        should_tally = _submit_vote_transaction(transaction)
+
+        # If this was the final vote, trigger tallying (outside the transaction)
+        if should_tally:
+            logger.info(f"All votes received for game {game_id}. Triggering tally.")
+            tally_votes(game_id)
+
+    except (FailedPrecondition, Aborted) as e:
+        # Transaction failed after maximum retries due to conflicts
+        logger.error(f"Vote submission failed for game {game_id} due to transaction conflicts: {e}")
+        raise ValueError("Unable to submit vote due to high activity. Please try again.")
+    except ValueError:
+        # Re-raise validation errors as-is
+        raise
+    except Exception as e:
+        # Unexpected error
+        logger.exception(f"Unexpected error submitting vote for game {game_id}: {e}")
+        raise ValueError("An unexpected error occurred while submitting your vote.")
 
 def submit_answer(game_id: str, user_uid: str, answer: str):
     """

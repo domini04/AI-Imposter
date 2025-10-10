@@ -67,3 +67,11 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 2.  **Frontend UI**: The `PlayerList.vue` component will be made state-aware. While the game `status` is "waiting," it will display generic, anonymous labels (e.g., "Player 1," "Player 2"). Once the game starts and the real nicknames are populated by the backend, the component will then display the `gameDisplayName` for all players.
 
 **Reasoning**: This approach completely eliminates the information leak and prevents meta-gaming. It ensures all players start on an equal footing and adds a moment of reveal when the game begins, enhancing the user experience. By making the backend the single source of truth for the simultaneous assignment, we guarantee fairness and consistency.
+
+### **October 1, 2025 - Automatic Voting Completion & Round Summaries**
+
+**Issue**: Voting phases required manual tally triggers and provided no structured explanation of results. Players could finish voting, but the game would not automatically advance, and the UI could not explain who was eliminated or why the game ended.
+
+**Decision**: The backend now auto-tallies once every active human has cast a vote and persists a `lastRoundResult` summary (vote counts, eliminated player, role, end reason) on the game document. The frontend consumes that summary to display detailed phase messaging and end-of-game explanations.
+
+**Reasoning**: This approach keeps the flow authoritative and removes race conditions, while giving players clear closure on each round. Persisted summaries also lay the groundwork for analytics and replay features without additional queries.

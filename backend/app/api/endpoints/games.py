@@ -9,6 +9,9 @@ from app.models.game import (
 from app.api.deps import get_current_user
 from app.services import game_service
 from typing import List
+import logging
+
+logger = logging.getLogger(__name__)
 
 # APIRouter creates a "mini" application that can be included in the main app.
 # This helps organize the code.
@@ -71,6 +74,9 @@ def vote_endpoint(
     """
     Allows an authenticated player to cast a vote for who they believe
     is the impostor in the current round.
+
+    The vote submission uses Firestore transactions to handle concurrent votes
+    safely and ensure exactly one request triggers vote tallying.
     """
     try:
         game_service.submit_vote(
@@ -80,14 +86,17 @@ def vote_endpoint(
         )
         return
     except ValueError as e:
+        # Expected errors (validation failures, transaction conflicts)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )
     except Exception as e:
+        # Unexpected errors - log for debugging
+        logger.exception(f"Unexpected error in vote endpoint for game {game_id}, user {user_uid}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"An unexpected error occurred: {e}"
+            detail="An unexpected error occurred while processing your vote."
         )
 
 @router.post(
