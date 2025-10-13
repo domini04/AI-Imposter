@@ -75,3 +75,21 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 **Decision**: The backend now auto-tallies once every active human has cast a vote and persists a `lastRoundResult` summary (vote counts, eliminated player, role, end reason) on the game document. The frontend consumes that summary to display detailed phase messaging and end-of-game explanations.
 
 **Reasoning**: This approach keeps the flow authoritative and removes race conditions, while giving players clear closure on each round. Persisted summaries also lay the groundwork for analytics and replay features without additional queries.
+
+### **October 10, 2025 - Transactional Vote Submission**
+
+**Issue**: With multiple players voting simultaneously, there was a risk of race conditions where duplicate tally operations could be triggered or vote counts could be inconsistent. The previous array-based vote storage didn't guarantee atomic read-modify-write operations when determining if all votes had been cast.
+
+**Decision**: The `submit_vote()` function was refactored to use Firestore transactions (see `game_service.py:474-557`). The transaction atomically reads game state, validates the vote, writes it to the votes array, and determines if this voter is the last one who should trigger tallying - all within a single atomic operation that Firestore will automatically retry on conflicts. Enhanced error logging was added to track transaction conflicts and unexpected errors for debugging.
+
+**Reasoning**: This solves the coordination problem elegantly without external locking mechanisms or coordination services. Only the client whose transaction successfully determines "all votes are in" will trigger `tally_votes()`, preventing duplicate tally operations. Firestore's automatic retry mechanism handles conflicts transparently, ensuring exactly-once semantics even under high concurrency. This makes the voting system production-ready for simultaneous voter scenarios and eliminates the race condition where multiple clients might attempt to tally simultaneously.
+
+### **October 13, 2025 - GPT-5 max_tokens Parameter Incompatibility**
+
+**Issue**: During AI service implementation, GPT-5 consistently returned empty strings when the `max_tokens` parameter was specified, despite successful API calls. The same parameter works correctly with GPT-4 models.
+
+**Decision**: Removed the `max_tokens` parameter from the GPT-5 factory function (`ai_service.py:247-250`). Response length is now controlled exclusively through prompt instructions ("Answer in 2-5 sentences").
+
+**Reasoning**: Empirical testing revealed GPT-5 has model-specific behavior different from GPT-4. GPT-5 respects prompt-based length guidance effectively, making the parameter unnecessary. This was validated through integration tests showing consistent 300+ character responses without the parameter. The quirk is documented in code comments to inform future provider implementations.
+
+**Key Takeaway**: Model-specific behavior cannot be assumed consistent across generations, even from the same provider. Always validate with real API calls when migrating between model versions.

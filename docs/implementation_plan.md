@@ -30,6 +30,20 @@ This document provides a granular, step-by-step checklist for developing the Min
 - [x] **Endpoint: `POST /games/{id}/submit-answer`:** Implement the logic to handle a player submitting their answer.
 - [x] **Endpoint: `POST /games/{id}/vote`:** Implement the logic for casting a vote.
 
+### 2.3. AI Service Implementation (Phase 1 Complete)
+- [x] **AI Service Module:** Create `ai_service.py` with LangChain integration.
+- [x] **OpenAI Provider:** Implement GPT-5 provider factory with configuration.
+- [x] **Prompt Engineering:** Design and implement English system/user prompts.
+- [x] **Conversation History:** Implement history extraction and formatting from Firestore.
+- [x] **LCEL Chain:** Build LangChain Expression Language chain (prompt | llm | parser).
+- [x] **Public Interface:** Create `generate_ai_response()` function with error handling.
+- [x] **Game Integration:** Update `game_service.py` to call AI service for AI players.
+- [x] **Testing:** Create and run integration tests with real GPT-5 API calls.
+- [x] **Issue Resolution:** Resolve GPT-5 max_tokens compatibility issue.
+- [ ] **Multi-Provider Support:** Add Anthropic, Google, xAI providers (Phase 2).
+- [ ] **Korean Language:** Implement Korean prompt templates (Phase 3).
+- [ ] **Production Hardening:** Add retry logic, structured logging, monitoring (Phase 4).
+
 ## 3. Frontend Development (Vue.js)
 
 ### 3.1. Boilerplate & Configuration

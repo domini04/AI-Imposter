@@ -2,6 +2,7 @@ from firebase_admin import firestore
 from app.services.firebase_service import get_firestore_client
 from app.models.game import CreateGameRequest
 from app.services import model_catalog
+from app.services import ai_service
 from app.utils import helpers
 import datetime
 import random
@@ -38,21 +39,190 @@ def _select_round_question(language: str) -> str:
     return random.choice(pool)
 
 
-def _enqueue_ai_placeholder_answers(game_ref, ai_players, round_number):
+def _extract_ai_conversation_history(game_ref, ai_player_uid: str, current_round: int):
+    """Extract AI player's conversation history from Firestore.
+
+    Queries the messages subcollection for this AI player's previous answers
+    and structures them for the AI service prompt.
+
+    Args:
+        game_ref: Firestore document reference to the game
+        ai_player_uid: The UID of the AI player
+        current_round: The current round number (history is from rounds < this)
+
+    Returns:
+        List of dictionaries with format:
+        [{"round": 1, "question": "...", "your_answer": "..."}, ...]
+        Returns empty list if current_round is 1 or no history found.
+
+    Note:
+        Uses graceful degradation - if messages are missing for some rounds,
+        logs a warning and continues with available data rather than failing.
+    """
+    # Round 1 has no history
+    if current_round <= 1:
+        return []
+
+    try:
+        # Get game data for questions
+        game_data = game_ref.get().to_dict()
+        if not game_data:
+            logger.warning(
+                f"Could not fetch game data for history extraction. "
+                f"Game: {game_ref.id}, AI: {ai_player_uid}"
+            )
+            return []
+
+        # Query AI's previous messages
+        messages_ref = game_ref.collection("messages")
+        query = (messages_ref
+                .where("senderId", "==", ai_player_uid)
+                .where("roundNumber", "<", current_round)
+                .order_by("roundNumber"))
+
+        messages = list(query.stream())
+
+        # Build history structure
+        history = []
+        rounds_data = game_data.get("rounds", [])
+
+        # Track which rounds we found messages for
+        found_rounds = set()
+
+        for msg_doc in messages:
+            msg_data = msg_doc.to_dict()
+            round_num = msg_data.get("roundNumber")
+
+            if round_num is None:
+                logger.warning(
+                    f"Message {msg_doc.id} missing roundNumber field. "
+                    f"Game: {game_ref.id}, AI: {ai_player_uid}"
+                )
+                continue
+
+            # Get question for this round from game rounds array
+            # rounds array is 0-indexed, round numbers are 1-indexed
+            if round_num - 1 < len(rounds_data):
+                question = rounds_data[round_num - 1].get("question", "")
+            else:
+                logger.warning(
+                    f"Round {round_num} not found in game rounds array. "
+                    f"Game: {game_ref.id}"
+                )
+                question = ""
+
+            answer_text = msg_data.get("text", "")
+
+            history.append({
+                "round": round_num,
+                "question": question,
+                "your_answer": answer_text
+            })
+
+            found_rounds.add(round_num)
+
+        # Check for missing rounds and log warnings
+        expected_rounds = set(range(1, current_round))
+        missing_rounds = expected_rounds - found_rounds
+
+        if missing_rounds:
+            logger.warning(
+                f"Missing AI messages for rounds {sorted(missing_rounds)}. "
+                f"Game: {game_ref.id}, AI: {ai_player_uid}, Current Round: {current_round}. "
+                f"Continuing with partial history ({len(history)} rounds found)."
+            )
+
+        return history
+
+    except Exception as e:
+        # Log error but don't crash - game can continue with empty history
+        logger.exception(
+            f"Error extracting conversation history. "
+            f"Game: {game_ref.id}, AI: {ai_player_uid}, Round: {current_round}. "
+            f"Error: {e}. Continuing with empty history."
+        )
+        return []
+
+
+def _enqueue_ai_answers(game_ref, ai_players, round_number):
+    """Generate and enqueue AI answers for the current round.
+
+    Uses ai_service to generate actual AI responses for each AI player.
+
+    Args:
+        game_ref: Firestore document reference to the game
+        ai_players: List of AI player dictionaries
+        round_number: Current round number
+    """
     db = get_firestore_client()
     pending_ref = game_ref.collection("pending_messages")
     batch = db.batch()
+
+    # Get game data for context
+    game_data = game_ref.get().to_dict()
+    if not game_data:
+        logger.error(f"Could not fetch game data for AI generation: {game_ref.id}")
+        return
+
+    # Get current round's question
+    rounds = game_data.get("rounds", [])
+    if round_number - 1 < len(rounds):
+        current_question = rounds[round_number - 1].get("question", "")
+    else:
+        logger.error(
+            f"Round {round_number} not found in game data: {game_ref.id}"
+        )
+        return
+
     for ai in ai_players:
+        # Extract conversation history
+        history = _extract_ai_conversation_history(
+            game_ref,
+            ai.get("uid"),
+            round_number
+        )
+
+        # Generate actual AI response
+        try:
+            ai_response = ai_service.generate_ai_response(
+                model_id=game_data.get("aiModelId", "gpt-5"),
+                question=current_question,
+                language=game_data.get("language", "en"),
+                round_number=round_number,
+                nickname=ai.get("gameDisplayName"),
+                conversation_history=history,
+                game_id=game_ref.id
+            )
+
+            logger.info(
+                f"Generated AI response for {ai.get('gameDisplayName')}: "
+                f"game={game_ref.id}, round={round_number}, "
+                f"length={len(ai_response)} chars"
+            )
+
+        except Exception as e:
+            # If AI generation fails completely, use fallback
+            logger.error(
+                f"AI generation failed for {ai.get('gameDisplayName')}: "
+                f"game={game_ref.id}, error={e}. Using fallback."
+            )
+            ai_response = AI_PLACEHOLDER_TEMPLATE.format(round=round_number)
+
         doc_ref = pending_ref.document()
         batch.set(doc_ref, {
             "authorId": ai.get("uid"),
             "senderId": ai.get("uid"),
             "senderName": ai.get("gameDisplayName"),
-            "content": AI_PLACEHOLDER_TEMPLATE.format(round=round_number),
+            "content": ai_response,
             "roundNumber": round_number,
             "submittedAt": firestore.SERVER_TIMESTAMP,
         })
+
     batch.commit()
+    logger.info(
+        f"Enqueued {len(ai_players)} AI responses for "
+        f"game {game_ref.id}, round {round_number}"
+    )
 
 def create_game(host_uid: str, settings: CreateGameRequest) -> str:
     """
@@ -261,7 +431,7 @@ def start_game(game_id: str, user_uid: str):
     })
 
     if ai_players:
-        _enqueue_ai_placeholder_answers(game_ref, ai_players, 1)
+        _enqueue_ai_answers(game_ref, ai_players, 1)
 
 def tally_answers(game_id: str):
     """
@@ -330,7 +500,7 @@ def tally_answers(game_id: str):
 
         ai_players = [p for p in game_data.get("players", []) if p.get("isImpostor")]
         if ai_players:
-            _enqueue_ai_placeholder_answers(game_ref, ai_players, next_round)
+            _enqueue_ai_answers(game_ref, ai_players, next_round)
     else:
         game_ref.update({
             "roundPhase": "VOTING",
@@ -432,7 +602,7 @@ def tally_votes(game_id: str):
 
         ai_players = [p for p in game_data.get("players", []) if p.get("isImpostor")]
         if ai_players:
-            _enqueue_ai_placeholder_answers(game_ref, ai_players, next_round)
+            _enqueue_ai_answers(game_ref, ai_players, next_round)
 
     round_result = {
         "round": current_round,

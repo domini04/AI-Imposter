@@ -32,9 +32,26 @@ The backend is the ultimate source of truth for the game's rules and progression
 The backend is responsible for all aspects of the AI's participation in the game.
 
 *   **AI Assignment:** At the start of a game, the backend secretly assigns one of the players to be the AI impostor. This information is stored server-side and is not exposed to the client.
-*   **Prompt Engineering & Management:** The backend will use a framework like **LangChain** to manage a library of prompt templates. This allows for sophisticated and version-controlled prompting strategies.
-*   **Context-Aware Generation:** When it is the AI's turn, the backend gathers the necessary context (game language, current question, recent chat history) from Firestore to build a rich, dynamic prompt.
-*   **Secure LLM API Calls:** The backend securely stores and uses the API keys for all LLM providers (Google, OpenAI, Anthropic). It makes server-to-server calls to the selected LLM and posts the response back to the `messages` subcollection in Firestore on behalf of the AI player.
+*   **Prompt Engineering & Management:** The backend uses **LangChain** to manage prompt templates. The AI service implements:
+    *   **System Prompts:** Define AI behavior as a human player trying to blend in
+    *   **User Prompts:** Include question, conversation history, and context
+    *   **Temperature Control:** Different settings per model (0.6-0.8) for natural variation
+    *   **Version Control:** All prompts defined in `ai_service.py` for easy iteration
+*   **Context-Aware Generation:** When it is the AI's turn, the backend gathers context from Firestore:
+    *   Current round question
+    *   Game language (English/Korean)
+    *   AI player's nickname and conversation history
+    *   Selected AI model ID (e.g., "gpt-5")
+*   **Secure LLM API Calls:** The backend securely stores and uses API keys for LLM providers:
+    *   **Phase 1 (Current):** OpenAI (GPT-5) via LangChain
+    *   **Phase 2 (Planned):** Anthropic (Claude), Google (Gemini), xAI (Grok)
+    *   API keys stored in `.env`, never exposed to client
+    *   Server-to-server calls only
+    *   Responses posted to `pending_messages` subcollection
+*   **Error Handling:** AI service implements graceful degradation:
+    *   Fallback responses if API fails
+    *   Logging for debugging
+    *   Game continues even if AI generation fails
 
 ## 4. Security Scope
 

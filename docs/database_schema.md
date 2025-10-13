@@ -69,7 +69,12 @@ Below are the detailed data structures for our Firestore collections.
   "status": "waiting", // "waiting", "in_progress", "voting", "finished"
   "language": "en",    // ISO 639-1 code: "en" or "ko"
   "createdAt": "ServerTimestamp",
-  
+
+  // AI Model Selection (Added October 2025)
+  "aiModelId": "gpt-5",  // Model identifier from model catalog
+                         // Options: "gpt-5", "claude-opus-4.1", "gemini-2.5-pro", "grok-4"
+                         // Used by AI service to select LLM provider for AI responses
+
   "currentRound": 1,
   "rounds": [
     {
@@ -78,7 +83,7 @@ Below are the detailed data structures for our Firestore collections.
     }
     // New round objects are added here as the game progresses
   ],
-  
+
   "players": [
     {
       "uid": "persistent_user_uid_1",      // The user's actual UID from Auth
@@ -91,9 +96,9 @@ Below are the detailed data structures for our Firestore collections.
       "isImpostor": true
     }
   ],
-  
+
   "impostorInfo": {
-    "aiModelUsed": "gemini-1.5-pro",
+    "aiModelUsed": "gpt-5",  // Matches aiModelId field (legacy compatibility)
     "aiPlayerId": "persistent_user_uid_2"
   },
   
