@@ -251,6 +251,10 @@ def create_game(host_uid: str, settings: CreateGameRequest) -> str:
         "privacy": settings.privacy,
         "aiModelId": settings.aiModelId,
         "createdAt": firestore.SERVER_TIMESTAMP,
+
+        # TTL: Auto-delete unstarted games after 15 minutes
+        "ttl": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=15),
+
         "currentRound": 0,
         "rounds": [],
         "players": [
@@ -418,6 +422,10 @@ def start_game(game_id: str, user_uid: str):
         "currentRound": 1, # Start the first round
         "roundStartTime": now,
         "roundEndTime": end_time,
+
+        # TTL: Extend expiration to 30 minutes from start time
+        "ttl": now + datetime.timedelta(minutes=30),
+
         "impostorInfo": {
             **game_data.get("impostorInfo", {}),
             "aiModelId": game_data.get("aiModelId")
@@ -571,15 +579,30 @@ def tally_votes(game_id: str):
     game_is_over = False
     end_reason = None
     if len(active_impostors) == 0:
-        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "humans"})
+        update_payload.update({
+            "status": "finished",
+            "roundPhase": "GAME_ENDED",
+            "winner": "humans",
+            "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
+        })
         game_is_over = True
         end_reason = "All impostors have been eliminated. Humans win!"
     elif len(active_impostors) >= len(active_humans):
-        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
+        update_payload.update({
+            "status": "finished",
+            "roundPhase": "GAME_ENDED",
+            "winner": "ai",
+            "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
+        })
         game_is_over = True
         end_reason = "AI count now matches or exceeds human count. AI win by parity."
     elif current_round >= 3:
-        update_payload.update({"status": "finished", "roundPhase": "GAME_ENDED", "winner": "ai"})
+        update_payload.update({
+            "status": "finished",
+            "roundPhase": "GAME_ENDED",
+            "winner": "ai",
+            "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
+        })
         game_is_over = True
         end_reason = "Maximum rounds reached with surviving impostors. AI win."
 

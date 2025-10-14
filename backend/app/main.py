@@ -33,6 +33,15 @@ def ping():
     """A simple endpoint to check if the server is alive."""
     return {"message": "pong"}
 
+# Debug endpoint to test authentication
+from app.api.deps import get_current_user
+from fastapi import Depends
+
+@app.get("/debug/auth")
+def debug_auth(user_uid: str = Depends(get_current_user)):
+    """Debug endpoint to test if authentication is working."""
+    return {"authenticated": True, "user_uid": user_uid, "message": "Authentication successful!"}
+
 # Include the API router from the games endpoint file.
 # All routes defined in games.py will now be part of our main app,
 # prefixed with /api/v1/games

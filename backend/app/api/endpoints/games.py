@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 @router.get(
-    "/",
+    "",  # Changed from "/" to "" - handles both /games and /games/ without redirect
     response_model=List[PublicGame],
     summary="List public games"
 )
@@ -200,7 +200,7 @@ def start_game_endpoint(game_id: str, user_uid: str = Depends(get_current_user))
         )
 
 @router.post(
-    "/",
+    "",  # Changed from "/" to "" - handles both /games and /games/ without redirect
     response_model=CreateGameResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create a new game room"
@@ -223,6 +223,7 @@ def create_game_endpoint(
         return CreateGameResponse(gameId=game_id, aiModelId=request_body.aiModelId)
     except Exception as e:
         # A generic error handler for any unexpected issues.
+        logger.exception(f"Error creating game for user {host_uid}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred: {e}"
