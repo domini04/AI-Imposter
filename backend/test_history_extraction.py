@@ -12,7 +12,7 @@ from unittest.mock import Mock, MagicMock
 sys.path.insert(0, str(Path(__file__).parent))
 
 # Import after path setup
-from app.services.game_service import _extract_ai_conversation_history
+from app.services.game_service import _extract_round_histories
 
 
 def create_mock_game_ref(rounds_data, messages_data):
@@ -61,7 +61,7 @@ def test_history_extraction():
     # Test 1: Round 1 (no history)
     print("\n✓ Test 1: Round 1 - Should return empty list")
     game_ref = create_mock_game_ref([], [])
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 1)
+    history = _extract_round_histories(game_ref, 1)
     assert history == [], f"Expected empty list, got {history}"
     print(f"  Result: {history} (correct)")
 
@@ -80,16 +80,18 @@ def test_history_extraction():
         }
     ]
     game_ref = create_mock_game_ref(rounds, messages)
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 2)
+    history = _extract_round_histories(game_ref, 2)
 
     print(f"  Found {len(history)} history entries")
     assert len(history) == 1, f"Expected 1 entry, got {len(history)}"
     assert history[0]["round"] == 1
     assert history[0]["question"] == "What is your favorite hobby?"
-    assert "hiking" in history[0]["your_answer"]
+    assert len(history[0]["answers"]) == 1
+    assert history[0]["answers"][0]["text"].startswith("I love hiking")
+    assert history[0]["answers"][0]["role"] == "ai"
     print(f"  Round: {history[0]['round']}")
     print(f"  Question: {history[0]['question'][:50]}...")
-    print(f"  Answer: {history[0]['your_answer'][:50]}...")
+    print(f"  First answer: {history[0]['answers'][0]['text'][:50]}...")
 
     # Test 3: Round 3 with two previous messages
     print("\n✓ Test 3: Round 3 - Two messages in history")
@@ -113,14 +115,14 @@ def test_history_extraction():
         }
     ]
     game_ref = create_mock_game_ref(rounds, messages)
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 3)
+    history = _extract_round_histories(game_ref, 3)
 
     print(f"  Found {len(history)} history entries")
     assert len(history) == 2, f"Expected 2 entries, got {len(history)}"
     assert history[0]["round"] == 1
     assert history[1]["round"] == 2
-    assert "hiking" in history[0]["your_answer"]
-    assert "mountains" in history[1]["your_answer"]
+    assert history[0]["answers"][0]["text"].startswith("I love hiking")
+    assert "mountains" in history[1]["answers"][0]["text"]
     print(f"  ✓ Both rounds present and in order")
 
     # Test 4: Missing message for a round (graceful degradation)
@@ -140,11 +142,12 @@ def test_history_extraction():
         }
     ]
     game_ref = create_mock_game_ref(rounds, messages)
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 3)
+    history = _extract_round_histories(game_ref, 3)
 
     print(f"  Found {len(history)} history entries (expected 1, round 2 missing)")
     assert len(history) == 1, f"Expected 1 entry, got {len(history)}"
     assert history[0]["round"] == 1
+    assert history[0]["answers"][0]["text"] == "Answer to question 1"
     print(f"  ✓ Continues with partial history (logged warning in real execution)")
 
     # Test 5: Malformed message (missing fields)
@@ -162,7 +165,7 @@ def test_history_extraction():
         }
     ]
     game_ref = create_mock_game_ref(rounds, messages)
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 2)
+    history = _extract_round_histories(game_ref, 2)
 
     print(f"  Found {len(history)} history entries (malformed message skipped)")
     assert len(history) == 0, f"Expected 0 entries, got {len(history)}"
@@ -178,16 +181,17 @@ def test_history_extraction():
         "text": "Test A"
     }]
     game_ref = create_mock_game_ref(rounds, messages)
-    history = _extract_ai_conversation_history(game_ref, "ai_123", 2)
+    history = _extract_round_histories(game_ref, 2)
 
     assert isinstance(history, list), "History should be a list"
     assert isinstance(history[0], dict), "Each entry should be a dict"
     assert "round" in history[0], "Entry missing 'round' key"
     assert "question" in history[0], "Entry missing 'question' key"
-    assert "your_answer" in history[0], "Entry missing 'your_answer' key"
+    assert "answers" in history[0], "Entry missing 'answers' key"
     assert isinstance(history[0]["round"], int), "'round' should be int"
     assert isinstance(history[0]["question"], str), "'question' should be str"
-    assert isinstance(history[0]["your_answer"], str), "'your_answer' should be str"
+    assert isinstance(history[0]["answers"], list), "'answers' should be list"
+    assert "text" in history[0]["answers"][0], "Answer missing 'text' key"
     print(f"  ✓ Output structure matches ai_service expectations")
 
     print("\n" + "=" * 70)

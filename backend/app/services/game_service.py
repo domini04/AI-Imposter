@@ -39,107 +39,111 @@ def _select_round_question(language: str) -> str:
     return random.choice(pool)
 
 
-def _extract_ai_conversation_history(game_ref, ai_player_uid: str, current_round: int):
-    """Extract AI player's conversation history from Firestore.
+def _extract_round_histories(game_ref, current_round: int):
+    """Extract public answers from completed rounds for prompt context.
 
-    Queries the messages subcollection for this AI player's previous answers
-    and structures them for the AI service prompt.
+    Builds a per-round history that captures every player's revealed answer.
 
     Args:
-        game_ref: Firestore document reference to the game
-        ai_player_uid: The UID of the AI player
-        current_round: The current round number (history is from rounds < this)
+        game_ref: Firestore document reference to the game.
+        current_round: The round we are about to generate answers for.
 
     Returns:
-        List of dictionaries with format:
-        [{"round": 1, "question": "...", "your_answer": "..."}, ...]
-        Returns empty list if current_round is 1 or no history found.
-
-    Note:
-        Uses graceful degradation - if messages are missing for some rounds,
-        logs a warning and continues with available data rather than failing.
+        List of dicts ordered by round number. Each dict has:
+            - round: int
+            - question: str
+            - answers: List[{"player": str, "role": str, "text": str}]
     """
-    # Round 1 has no history
     if current_round <= 1:
         return []
 
     try:
-        # Get game data for questions
-        game_data = game_ref.get().to_dict()
+        game_doc = game_ref.get()
+        game_data = game_doc.to_dict() if game_doc else None
         if not game_data:
             logger.warning(
-                f"Could not fetch game data for history extraction. "
-                f"Game: {game_ref.id}, AI: {ai_player_uid}"
+                "Could not fetch game data for round history extraction. "
+                "Game: %s", game_ref.id
             )
             return []
 
-        # Query AI's previous messages
-        messages_ref = game_ref.collection("messages")
-        query = (messages_ref
-                .where("senderId", "==", ai_player_uid)
-                .where("roundNumber", "<", current_round)
-                .order_by("roundNumber"))
-
-        messages = list(query.stream())
-
-        # Build history structure
-        history = []
         rounds_data = game_data.get("rounds", [])
+        players_index = {p.get("uid"): p for p in game_data.get("players", [])}
 
-        # Track which rounds we found messages for
-        found_rounds = set()
+        db = get_firestore_client()
+        pending_ref = game_ref.collection("pending_messages")
+        messages_ref = game_ref.collection("messages")
 
-        for msg_doc in messages:
+        pending_query = (pending_ref
+                         .where("roundNumber", "<", current_round))
+        messages_query = (messages_ref
+                          .where("roundNumber", "<", current_round)
+                          .order_by("roundNumber"))
+
+        round_map = {}
+        pending_messages = list(pending_query.stream())
+        stored_messages = list(messages_query.stream())
+        all_messages = pending_messages + stored_messages
+
+        # Sort deterministically by round number then timestamp (if present)
+        def sort_key(msg_doc):
+            msg_data = msg_doc.to_dict()
+            round_num = msg_data.get("roundNumber") or 0
+            timestamp = msg_data.get("timestamp")
+            return (
+                round_num,
+                timestamp if timestamp is not None else 0
+            )
+
+        all_messages.sort(key=sort_key)
+
+        for msg_doc in all_messages:
             msg_data = msg_doc.to_dict()
             round_num = msg_data.get("roundNumber")
-
-            if round_num is None:
+            if not round_num:
                 logger.warning(
-                    f"Message {msg_doc.id} missing roundNumber field. "
-                    f"Game: {game_ref.id}, AI: {ai_player_uid}"
+                    "Message %s missing roundNumber field. Game: %s",
+                    msg_doc.id,
+                    game_ref.id
                 )
                 continue
 
-            # Get question for this round from game rounds array
-            # rounds array is 0-indexed, round numbers are 1-indexed
-            if round_num - 1 < len(rounds_data):
-                question = rounds_data[round_num - 1].get("question", "")
-            else:
-                logger.warning(
-                    f"Round {round_num} not found in game rounds array. "
-                    f"Game: {game_ref.id}"
-                )
-                question = ""
-
-            answer_text = msg_data.get("text", "")
-
-            history.append({
+            entry = round_map.setdefault(round_num, {
                 "round": round_num,
-                "question": question,
-                "your_answer": answer_text
+                "question": rounds_data[round_num - 1].get("question", "")
+                if round_num - 1 < len(rounds_data) else "",
+                "answers": []
             })
 
-            found_rounds.add(round_num)
+            sender_id = msg_data.get("senderId") or msg_data.get("authorId")
+            player = players_index.get(sender_id) if sender_id else None
+            role = "ai" if player and player.get("isImpostor") else "human"
 
-        # Check for missing rounds and log warnings
+            entry["answers"].append({
+                "player": (player.get("gameDisplayName") if player else msg_data.get("senderName") or "Unknown"),
+                "role": role,
+                "text": msg_data.get("text") or msg_data.get("content") or ""
+            })
+
+        histories = [round_map[r] for r in sorted(round_map.keys())]
+
         expected_rounds = set(range(1, current_round))
-        missing_rounds = expected_rounds - found_rounds
-
+        missing_rounds = expected_rounds - set(round_map.keys())
         if missing_rounds:
             logger.warning(
-                f"Missing AI messages for rounds {sorted(missing_rounds)}. "
-                f"Game: {game_ref.id}, AI: {ai_player_uid}, Current Round: {current_round}. "
-                f"Continuing with partial history ({len(history)} rounds found)."
+                "Missing messages for rounds %s when building history. Game: %s",
+                sorted(missing_rounds),
+                game_ref.id
             )
 
-        return history
+        return histories
 
-    except Exception as e:
-        # Log error but don't crash - game can continue with empty history
+    except Exception as exc:
         logger.exception(
-            f"Error extracting conversation history. "
-            f"Game: {game_ref.id}, AI: {ai_player_uid}, Round: {current_round}. "
-            f"Error: {e}. Continuing with empty history."
+            "Error extracting round histories. Game: %s, Round: %s. Error: %s",
+            game_ref.id,
+            current_round,
+            exc
         )
         return []
 
@@ -176,9 +180,8 @@ def _enqueue_ai_answers(game_ref, ai_players, round_number):
 
     for ai in ai_players:
         # Extract conversation history
-        history = _extract_ai_conversation_history(
+        history = _extract_round_histories(
             game_ref,
-            ai.get("uid"),
             round_number
         )
 
@@ -410,7 +413,7 @@ def start_game(game_id: str, user_uid: str):
     # Set timers for the first round
     now = datetime.datetime.now(datetime.timezone.utc)
     # Using a short duration for easier testing; this would be longer in production.
-    answer_duration = datetime.timedelta(seconds=30) 
+    answer_duration = datetime.timedelta(seconds=90) 
     end_time = now + answer_duration
 
     question = _select_round_question(game_data.get("language", "en"))
@@ -491,7 +494,7 @@ def tally_answers(game_id: str):
     current_round = game_data.get("currentRound", 0)
 
     if current_round == 1:
-        answer_duration = datetime.timedelta(seconds=30)
+        answer_duration = datetime.timedelta(seconds=90)
         next_round_end_time = now + answer_duration
         next_round = current_round + 1
         question = _select_round_question(game_data.get("language", "en"))
@@ -608,7 +611,7 @@ def tally_votes(game_id: str):
 
     if not game_is_over:
         now = datetime.datetime.now(datetime.timezone.utc)
-        answer_duration = datetime.timedelta(seconds=30)
+        answer_duration = datetime.timedelta(seconds=90)
         next_round_end_time = now + answer_duration
         next_round = current_round + 1
         question = _select_round_question(game_data.get("language", "en"))

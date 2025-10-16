@@ -93,3 +93,11 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 **Reasoning**: Empirical testing revealed GPT-5 has model-specific behavior different from GPT-4. GPT-5 respects prompt-based length guidance effectively, making the parameter unnecessary. This was validated through integration tests showing consistent 300+ character responses without the parameter. The quirk is documented in code comments to inform future provider implementations.
 
 **Key Takeaway**: Model-specific behavior cannot be assumed consistent across generations, even from the same provider. Always validate with real API calls when migrating between model versions.
+
+### **October 16, 2025 - Prompt Context from Prior Rounds**
+
+**Issue**: LangSmith traces showed that round-two-and-later LLM calls were missing context from previous rounds. Conversation history was fetched from Firestore right after `pending_messages` had been moved to `messages`, so the query occasionally returned nothing.
+
+**Decision**: Updated the backend to aggregate history from both `pending_messages` and the persisted `messages` collection when building the prompt context. The AI prompt formatter was also expanded to display every player's prior answers, ensuring the information survives eventual consistency while the next round begins.
+
+**Reasoning**: Reading from both collections guarantees we keep the latest round answers even before Firestore finishes propagating writes. This makes the AI more consistent, lets it react to human responses, and improves trace observability without adding new synchronization primitives.

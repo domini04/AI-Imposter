@@ -1,6 +1,6 @@
 <script setup>
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue';
-import { useRoute } from 'vue-router';
+import { useRoute, RouterLink } from 'vue-router';
 import { useGameStore } from '@/stores/game';
 import { 
   subscribeToGame, 
@@ -57,6 +57,13 @@ const roundEndTime = computed(() => game.value?.roundEndTime);
 
 const roundSummary = computed(() => game.value?.lastRoundResult || null);
 
+const roundsToHideSenderNames = computed(() => {
+  if (!messages.value?.length) {
+    return [];
+  }
+  return [1];
+});
+
 watch([
   () => game.value?.roundPhase,
   () => game.value?.currentRound,
@@ -70,7 +77,7 @@ watch([
 
   if (phase === 'ANSWER_SUBMISSION') {
     if (round === 1) {
-      phaseMessage.value = 'Collecting answers. No voting this round—answers will reveal and the next question will begin.';
+      phaseMessage.value = 'Collecting answers. No voting this round—answers will reveal and the next question will begin. Player names stay hidden during the first round so everyone reads the answers without bias.';
     } else {
       phaseMessage.value = 'Collecting answers. Once revealed, voting will open to pick the impostor.';
     }
@@ -177,72 +184,85 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div v-if="game" class="game-room-layout">
-    <aside class="side-panel">
-      <PlayerList :players="game.players" :host-id="game.hostId" :status="game.status" :current-user-id="currentUser?.uid" />
-      <HostControls 
-        v-if="isHost"
-        :status="game.status"
-        :player-count="game.players.length"
-        :round-phase="game.roundPhase"
-        :is-tallying="autoTallyInProgress"
-        @start-game="gameStore.startGame()"
-        @tally-answers="handleTallyAnswers"
-        @tally-votes="handleTallyVotes"
-      />
-      <p v-if="hostActionMessage" class="host-feedback">{{ hostActionMessage }}</p>
-    </aside>
-    
-    <main class="main-content">
-      <GameStatusDisplay 
-        :status="game.status" 
-        :current-round="game.currentRound"
-        :question="currentQuestion"
-      />
-      <RoundTimer
-        v-if="game.status === 'in_progress'"
-        :round-start="roundStartTime"
-        :round-end="roundEndTime"
-        :phase="game.roundPhase"
-        :auto-trigger="isHost"
-        @expired="handleTimerExpired"
-      />
-      <p v-if="phaseMessage" class="phase-message">{{ phaseMessage }}</p>
-      <ChatDisplay :messages="messages" :players="game.players" />
-      <section v-if="isAnswerPhase" class="answer-section">
-        <MessageInput
-          :disabled="hasSubmittedAnswer"
-          :is-submitting="isSubmittingAnswer"
-          placeholder="Share your answer for this round…"
-          @submit="handleSubmitAnswer"
+  <div v-if="game" class="game-room-container">
+    <header class="game-room-header">
+      <RouterLink to="/" class="home-link">
+        <span class="home-icon" aria-hidden="true">←</span>
+        <span class="home-text">Back to Lobby</span>
+      </RouterLink>
+    </header>
+
+    <div class="game-room-layout">
+      <aside class="side-panel">
+        <PlayerList :players="game.players" :host-id="game.hostId" :status="game.status" :current-user-id="currentUser?.uid" />
+        <HostControls 
+          v-if="isHost"
+          :status="game.status"
+          :player-count="game.players.length"
+          :round-phase="game.roundPhase"
+          :is-tallying="autoTallyInProgress"
+          @start-game="gameStore.startGame()"
+          @tally-answers="handleTallyAnswers"
+          @tally-votes="handleTallyVotes"
         />
-        <p v-if="submissionMessage" class="submission-feedback">{{ submissionMessage }}</p>
-      </section>
-      <VotingInterface
-        v-else-if="game.roundPhase === 'VOTING'"
-        :players="game.players"
-        :current-user-id="currentUser?.uid"
-        :disabled="gameStore.voteStatus === 'submitted'"
-        :is-submitting="gameStore.voteStatus === 'submitting'"
-        @vote="handleVote"
-      />
-      <section v-else class="answer-inactive">
-        <template v-if="game.roundPhase === 'GAME_ENDED' && roundSummary">
-          <div class="round-summary">
-            <h3>Final Vote Result (Round {{ roundSummary.round }})</h3>
-            <p>{{ roundSummary.summary }}</p>
-            <ul>
-              <li v-for="vote in roundSummary.votes" :key="vote.targetId">
-                {{ vote.voteCount }} vote(s) for {{ vote.targetName }} ({{ vote.isImpostor ? 'AI' : 'Human' }})
-              </li>
-            </ul>
-            <p v-if="roundSummary.endReason" class="end-reason">{{ roundSummary.endReason }}</p>
-          </div>
-        </template>
-        <p v-else>Waiting for the next answer submission phase…</p>
-      </section>
-      <p v-if="voteFeedback" class="vote-feedback">{{ voteFeedback }}</p>
-    </main>
+        <p v-if="hostActionMessage" class="host-feedback">{{ hostActionMessage }}</p>
+      </aside>
+      
+      <main class="main-content">
+        <GameStatusDisplay 
+          :status="game.status" 
+          :current-round="game.currentRound"
+          :question="currentQuestion"
+        />
+        <RoundTimer
+          v-if="game.status === 'in_progress'"
+          :round-start="roundStartTime"
+          :round-end="roundEndTime"
+          :phase="game.roundPhase"
+          :auto-trigger="isHost"
+          @expired="handleTimerExpired"
+        />
+        <p v-if="phaseMessage" class="phase-message">{{ phaseMessage }}</p>
+        <ChatDisplay
+          :messages="messages"
+          :players="game.players"
+          :hide-sender-name-rounds="roundsToHideSenderNames"
+        />
+        <section v-if="isAnswerPhase" class="answer-section">
+          <MessageInput
+            :disabled="hasSubmittedAnswer"
+            :is-submitting="isSubmittingAnswer"
+            placeholder="Share your answer for this round…"
+            @submit="handleSubmitAnswer"
+          />
+          <p v-if="submissionMessage" class="submission-feedback">{{ submissionMessage }}</p>
+        </section>
+        <VotingInterface
+          v-else-if="game.roundPhase === 'VOTING'"
+          :players="game.players"
+          :current-user-id="currentUser?.uid"
+          :disabled="gameStore.voteStatus === 'submitted'"
+          :is-submitting="gameStore.voteStatus === 'submitting'"
+          @vote="handleVote"
+        />
+        <section v-else class="answer-inactive">
+          <template v-if="game.roundPhase === 'GAME_ENDED' && roundSummary">
+            <div class="round-summary">
+              <h3>Final Vote Result (Round {{ roundSummary.round }})</h3>
+              <p>{{ roundSummary.summary }}</p>
+              <ul>
+                <li v-for="vote in roundSummary.votes" :key="vote.targetId">
+                  {{ vote.voteCount }} vote(s) for {{ vote.targetName }} ({{ vote.isImpostor ? 'AI' : 'Human' }})
+                </li>
+              </ul>
+              <p v-if="roundSummary.endReason" class="end-reason">{{ roundSummary.endReason }}</p>
+            </div>
+          </template>
+          <p v-else>Waiting for the next answer submission phase…</p>
+        </section>
+        <p v-if="voteFeedback" class="vote-feedback">{{ voteFeedback }}</p>
+      </main>
+    </div>
   </div>
   <div v-else class="loading-container">
     <p>Loading game data...</p>
@@ -255,7 +275,49 @@ onUnmounted(() => {
   grid-template-columns: 250px 1fr; /* Sidebar and main content */
   gap: 2rem;
   max-width: 1200px;
-  margin: 2rem auto;
+  margin: 1rem auto 2rem;
+}
+
+.game-room-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+}
+
+.game-room-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 1.5rem 0 0.5rem;
+}
+
+.home-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.1rem;
+  border-radius: 999px;
+  text-decoration: none;
+  background: linear-gradient(135deg, #0d47a1 0%, #1976d2 100%);
+  color: #fff;
+  font-weight: 600;
+  letter-spacing: 0.01rem;
+  box-shadow: 0 4px 10px rgba(13, 71, 161, 0.25);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.home-link:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(13, 71, 161, 0.3);
+}
+
+.home-icon {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.home-text {
+  font-size: 0.95rem;
 }
 
 .side-panel {

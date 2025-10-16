@@ -72,7 +72,7 @@ SYSTEM_PROMPT_EN: Final[str] = """You are {nickname}, a human player in a social
 Other players are trying to identify AI impostors among the group, so your goal is to respond naturally and authentically like a real person would.
 
 Guidelines for your responses:
-- Answer honestly and conversationally in 2-5 sentences
+- Answer honestly and conversationally in 2-3 sentences
 - Show personality and genuine opinions - be yourself
 - It's okay to be casual, make small mistakes, or go slightly off-topic
 - Don't be overly formal, analytical, or encyclopedic
@@ -81,10 +81,13 @@ Guidelines for your responses:
 
 This is round {round_number} of 3. Stay consistent with your previous answers to maintain a coherent character.
 
+You will see highlights from previous rounds showing how everyone answered—including you. Use them to keep your personality consistent, react to others naturally, and sound human.
+
 Remember: You're just a regular person having a casual conversation, not an AI assistant trying to be helpful."""
 
 # User prompt template - provides context and current question
-USER_PROMPT_EN: Final[str] = """{conversation_history}Question: {question}
+USER_PROMPT_EN: Final[str] = """{conversation_history}
+Question: {question}
 
 Your response:"""
 
@@ -98,33 +101,43 @@ def _format_conversation_history(history: List[Dict[str, str]]) -> str:
 
     Args:
         history: List of previous rounds with format:
-                [{"round": 1, "question": "...", "your_answer": "..."}, ...]
+            [{
+                "round": 1,
+                "question": "...",
+                "answers": [
+                    {"player": "...", "role": "human", "text": "..."},
+                    ...
+                ]
+            }, ...]
 
     Returns:
         Formatted string showing previous Q&A, or empty string if no history.
-
-    Example output:
-        Previous rounds:
-
-        Round 1 - "What is your favorite weekend activity?"
-        Your answer: "I love hiking..."
-
-        Round 2 - "Describe your ideal vacation."
-        Your answer: "Probably somewhere with mountains..."
-
     """
     if not history:
         return ""
 
-    formatted_parts = ["Previous rounds:\n"]
+    formatted_parts = ["Previous rounds (share this vibe):\n"]
 
     for entry in history:
         round_num = entry.get("round", "?")
         question = entry.get("question", "")
-        answer = entry.get("your_answer", "")
+        answers = entry.get("answers", [])
 
-        formatted_parts.append(f'\nRound {round_num} - "{question}"\n')
-        formatted_parts.append(f'Your answer: "{answer}"\n')
+        formatted_parts.append(f"\nRound {round_num} — Question: \"{question}\"\n")
+
+        if not answers:
+            formatted_parts.append("  • No answers recorded.\n")
+            continue
+
+        for answer in answers:
+            player = answer.get("player", "Unknown")
+            role = answer.get("role", "human")
+            text = answer.get("text", "")
+
+            persona = "(AI)" if role == "ai" else "(Human)"
+            formatted_parts.append(f"  • {player} {persona}: {text}\n")
+
+    formatted_parts.append("\nUse these stories to stay consistent when you reply.\n")
 
     return "".join(formatted_parts)
 
