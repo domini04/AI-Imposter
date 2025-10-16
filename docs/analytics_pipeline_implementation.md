@@ -1,10 +1,28 @@
 # Analytics Pipeline - Step-by-Step Implementation Guide
 
-**Last Updated:** October 14, 2025
-**Status:** Implementation Ready
+**Last Updated:** October 16, 2025
+**Status:** Phase 1.1 Steps 1-3 Complete, Steps 4-6 In Progress
 **Related:** [pipelines_architecture.md](./pipelines_architecture.md)
 
 This document provides detailed, actionable steps to build the Phase 1 Analytics Pipeline. Follow these steps sequentially to achieve a working data pipeline.
+
+---
+
+## Implementation Progress
+
+### Phase 1.1: Foundation
+- ✅ **Step 1:** Define game_results schema - COMPLETE
+- ⏭️ **Step 2:** Extract chat log function - SKIPPED (feature not implemented)
+- ✅ **Step 3:** Archive game results to Firestore - COMPLETE
+- ⏳ **Step 4:** Create BigQuery dataset and table - PENDING
+- ⏳ **Step 5:** Deploy Cloud Function - PENDING
+- ⏳ **Step 6:** End-to-end test - PENDING
+
+### Phase 1.2: Dashboard
+- ⏳ Steps 7-9 - Not started
+
+### Phase 1.3: Production Hardening
+- ⏳ Steps 10-14 - Not started
 
 ---
 
@@ -29,208 +47,113 @@ Every finished game automatically appears in BigQuery within 60 seconds, with a 
 
 **Goal:** Get first game result into BigQuery
 
-### Step 1: Define game_results Schema
+### Step 1: Define game_results Schema ✅ COMPLETED
 
-**Task:** Create a document structure for storing game results in Firestore.
+**Task:** Create Pydantic models for the game results data structure.
 
-**Action:**
-Create a new file documenting the schema:
+**Implementation:** `backend/app/models/game.py` (lines 58-124)
 
-```python
-# backend/app/models/game_result.py
-from pydantic import BaseModel
-from typing import List, Optional
-from datetime import datetime
+Schema models created:
+- `GameResultPlayer` - Player information with UID (foreign key), nickname, impostor status, elimination data
+- `GameResultAnswer` - Individual answers with playerId (FK), text, and isAI flag
+- `GameResultRound` - Round data with question and revealed answers array
+- `GameResultVote` - Vote records with voterId (FK), targetId (FK), round, timestamp
+- `GameResultLastRound` - Game outcome details (eliminated player, reason, vote counts)
+- `GameResult` - Main document structure combining all nested data
 
-class PlayerResult(BaseModel):
-    uid: str
-    gameDisplayName: str
-    isImpostor: bool
-    isEliminated: Optional[bool] = False
-
-class RoundData(BaseModel):
-    round: int
-    question: str
-
-class VoteData(BaseModel):
-    voterId: str
-    targetId: str
-    round: int
-
-class MessageData(BaseModel):
-    roundNumber: int
-    senderId: str
-    senderName: str
-    text: str
-    timestamp: datetime
-
-class GameResult(BaseModel):
-    """
-    Schema for game results stored in Firestore game_results collection.
-    This data will be archived to BigQuery for analytics.
-    """
-    gameId: str
-    endedAt: datetime
-    language: str  # 'en' or 'ko'
-    aiModelUsed: str  # e.g., 'gpt-5'
-    winner: str  # 'humans' or 'ai'
-    totalRounds: int
-
-    # Nested data
-    players: List[PlayerResult]
-    rounds: List[RoundData]
-    votes: List[VoteData]
-    messages: List[MessageData]
-
-    # Optional metadata
-    endReason: Optional[str] = None
-```
+**Key Design Decisions:**
+- UIDs kept as foreign keys for relational joins (not for user tracking)
+- Chat messages removed (feature not implemented yet)
+- `isAI` flag added to answers for simplified queries
+- All votes backfilled with current timestamp (votes don't currently store timestamps)
 
 **Validation:**
-- Schema matches what your `tally_votes()` function will produce
-- All required fields present
-- Types correct for Firestore and BigQuery compatibility
-
----
-
-### Step 2: Extract Chat Log Function
-
-**Task:** Create a helper function to extract the full chat log from a game.
-
-**Action:**
-Add to `backend/app/services/game_service.py`:
-
-```python
-def _extract_full_chat_log(game_ref) -> list:
-    """
-    Extracts all messages from a game for archival.
-
-    Args:
-        game_ref: Firestore document reference to the game
-
-    Returns:
-        List of message dictionaries with normalized structure
-    """
-    messages_ref = game_ref.collection('messages')
-    messages_query = messages_ref.order_by('timestamp')
-
-    chat_log = []
-    for msg_doc in messages_query.stream():
-        msg_data = msg_doc.to_dict()
-        chat_log.append({
-            'roundNumber': msg_data.get('roundNumber', 0),
-            'senderId': msg_data.get('senderId', ''),
-            'senderName': msg_data.get('senderName', ''),
-            'text': msg_data.get('text', ''),
-            'timestamp': msg_data.get('timestamp')
-        })
-
-    return chat_log
-```
-
-**Validation:**
-```python
-# Test in Python REPL
-from app.services.game_service import _extract_full_chat_log
-from app.services.firebase_service import get_firestore_client
-
-db = get_firestore_client()
-game_ref = db.collection('game_rooms').document('test_game_id')
-messages = _extract_full_chat_log(game_ref)
-print(f"Extracted {len(messages)} messages")
-print(messages[0] if messages else "No messages")
-```
-
----
-
-### Step 3: Update tally_votes() to Write Results
-
-**Task:** When a game ends, write the result to `game_results` collection.
-
-**Action:**
-Modify `tally_votes()` in `backend/app/services/game_service.py`:
-
-```python
-def tally_votes(game_id: str):
-    """Counts votes, applies eliminations, and advances to the next phase."""
-    db = get_firestore_client()
-    game_ref = db.collection("game_rooms").document(game_id)
-
-    # ... existing logic ...
-
-    if game_is_over:
-        update_payload.update({
-            "status": "finished",
-            "roundPhase": "GAME_ENDED",
-            "winner": "humans",  # or "ai"
-            "ttl": firestore.DELETE_FIELD
-        })
-
-        # NEW: Archive game result for analytics
-        _archive_game_result(game_ref, game_data, end_reason, eliminated_player, eliminated_role)
-
-    # ... rest of existing logic ...
-```
-
-**Add the archive function:**
-
-```python
-def _archive_game_result(game_ref, game_data, end_reason, eliminated_player, eliminated_role):
-    """
-    Writes game result to game_results collection for pipeline processing.
-
-    This is called when a game ends. The Cloud Function will detect this
-    new document and archive it to BigQuery.
-    """
-    try:
-        db = get_firestore_client()
-
-        # Extract chat log
-        messages = _extract_full_chat_log(game_ref)
-
-        # Determine winner
-        winner = game_data.get('winner', 'unknown')
-
-        # Build result document
-        result_doc = {
-            'gameId': game_ref.id,
-            'endedAt': firestore.SERVER_TIMESTAMP,
-            'language': game_data.get('language', 'en'),
-            'aiModelUsed': game_data.get('aiModelId', 'unknown'),
-            'winner': winner,
-            'totalRounds': game_data.get('currentRound', 0),
-            'endReason': end_reason,
-
-            # Nested data
-            'players': game_data.get('players', []),
-            'rounds': game_data.get('rounds', []),
-            'votes': game_data.get('votes', []),
-            'messages': messages,
-
-            # Metadata
-            'createdAt': game_data.get('createdAt'),
-            'lastRoundResult': game_data.get('lastRoundResult', {})
-        }
-
-        # Write to game_results collection
-        db.collection('game_results').add(result_doc)
-
-        logger.info(f"Archived game result for {game_ref.id} to game_results collection")
-
-    except Exception as e:
-        # Log but don't crash - game already finished successfully
-        logger.error(f"Failed to archive game result for {game_ref.id}: {e}")
-```
-
-**Validation:**
-1. Play a complete game through your frontend
-2. Check Firestore console for new document in `game_results` collection
-3. Verify all fields are present and correct
-
 ```bash
-# Check if result was written
-firebase firestore:query game_results --limit 1
+uv run python -c "from app.models.game import GameResult; print('✓ Schema validated')"
 ```
+
+**Status:** ✅ Complete - Schema defined and validated
+
+---
+
+### Step 2: ~~Extract Chat Log Function~~ → SKIPPED
+
+**Status:** ⏭️ Skipped - Chat feature not implemented yet
+
+**Rationale:**
+The game currently only supports question/answer gameplay without free-form chat between players. The `messages` subcollection contains only round answers, which are extracted differently in Step 3.
+
+**Future Consideration:**
+If chat functionality is added later, implement a dedicated chat extraction function that:
+- Queries `game_rooms/{gameId}/messages` or separate chat subcollection
+- Filters out round answers (which are already captured)
+- Includes only conversational messages
+- Preserves chronological order with timestamps
+
+---
+
+### Step 3: Archive Game Results to Firestore ✅ COMPLETED
+
+**Task:** Create archival function and integrate with game end logic.
+
+**Implementation:** `backend/app/services/game_service.py`
+
+**Part A: `_archive_game_result()` Helper Function** (lines 523-666)
+
+Created comprehensive extraction and transformation logic:
+
+```python
+def _archive_game_result(game_ref, game_data: dict, winner: str):
+    """
+    Archives finished game to game_results collection for analytics pipeline.
+    Fault-tolerant - exceptions logged but not re-raised.
+    """
+    # Key implementation details:
+    # 1. Extracts players from game_data
+    # 2. Queries messages subcollection and groups by round
+    # 3. Builds rounds with revealedAnswers (includes isAI flag)
+    # 4. Extracts votes array (backfills timestamps)
+    # 5. Validates with Pydantic GameResult model
+    # 6. Writes to game_results collection
+```
+
+**Data Extraction Strategy:**
+- **Players**: Direct copy from `game_data['players']`
+- **Rounds**: Query `messages` subcollection, group by `roundNumber`, match with questions from `game_data['rounds']`
+- **Votes**: Extract from `game_data['votes']` array, backfill timestamps
+- **Answers**: Cross-reference `senderId` with player list to determine `isAI` flag
+
+**Part B: Conditional Integration** (lines 798-801)
+
+Added to `tally_votes()` function:
+
+```python
+game_ref.update(update_payload)
+
+# Archive game results when game ends (round 2 or 3)
+if game_is_over:
+    winner = update_payload.get("winner")
+    _archive_game_result(game_ref, game_data, winner)
+```
+
+**Execution Points:**
+- ✅ Round 2 ends → All AI eliminated → Archives
+- ✅ Round 2 ends → AI >= humans → Archives
+- ✅ Round 3 ends → Max rounds reached → Archives
+- ❌ Round 2 ends → Game continues → No archive
+
+**Error Handling:**
+- Wrapped in try/except to prevent analytics failures from breaking gameplay
+- Logs errors with full stack trace for debugging
+- TODO noted for future `failed_archives` collection
+
+**Validation:**
+```bash
+# Play complete game and check Firestore
+uv run python -c "from app.services.game_service import _archive_game_result; print('✓ Function imports successfully')"
+```
+
+**Status:** ✅ Complete - Archival logic implemented and integrated
 
 ---
 

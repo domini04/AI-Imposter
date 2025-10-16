@@ -518,7 +518,154 @@ def tally_answers(game_id: str):
             "roundStartTime": now,
             "roundEndTime": None
         })
-    
+
+
+def _archive_game_result(game_ref, game_data: dict, winner: str):
+    """
+    Archives a finished game to the game_results collection for analytics pipeline.
+
+    This function extracts all relevant game data and writes it to Firestore's
+    game_results collection, which serves as the staging layer before BigQuery archival.
+
+    Args:
+        game_ref: Firestore document reference to the finished game
+        game_data: Dictionary containing the game's data snapshot
+        winner: The game winner ("humans" or "ai")
+
+    Note:
+        This function is fault-tolerant - exceptions are logged but not re-raised
+        to ensure gameplay completion is not affected by analytics failures.
+    """
+    from app.models.game import (
+        GameResult, GameResultPlayer, GameResultRound,
+        GameResultAnswer, GameResultVote, GameResultLastRound
+    )
+
+    db = get_firestore_client()
+    game_id = game_ref.id
+
+    try:
+        logger.info(f"Starting game result archival for game {game_id}")
+
+        # Extract basic game metadata
+        language = game_data.get("language", "en")
+        ai_model_used = game_data.get("aiModelId", "unknown")
+        total_rounds = game_data.get("currentRound", 0)
+
+        # Build players list
+        players_data = game_data.get("players", [])
+        players_list = []
+        for player in players_data:
+            players_list.append(GameResultPlayer(
+                uid=player.get("uid"),
+                gameDisplayName=player.get("gameDisplayName", "Unknown"),
+                isImpostor=player.get("isImpostor", False),
+                isEliminated=player.get("isEliminated", False),
+                eliminatedInRound=None  # TODO: Track elimination rounds in future
+            ))
+
+        # Create player lookup for determining isAI flag
+        player_lookup = {p.get("uid"): p for p in players_data}
+
+        # Extract messages from subcollection and build rounds with answers
+        messages_ref = game_ref.collection("messages")
+        messages_docs = list(messages_ref.stream())
+
+        # Group messages by round number
+        rounds_map = {}
+        rounds_metadata = game_data.get("rounds", [])
+
+        for msg_doc in messages_docs:
+            msg_data = msg_doc.to_dict()
+            round_num = msg_data.get("roundNumber", 0)
+
+            if round_num not in rounds_map:
+                # Get question for this round from rounds metadata
+                question = ""
+                for round_meta in rounds_metadata:
+                    if round_meta.get("round") == round_num:
+                        question = round_meta.get("question", "")
+                        break
+
+                rounds_map[round_num] = {
+                    "question": question,
+                    "answers": []
+                }
+
+            # Determine if this answer is from AI
+            sender_id = msg_data.get("senderId")
+            player = player_lookup.get(sender_id)
+            is_ai = player.get("isImpostor", False) if player else False
+
+            rounds_map[round_num]["answers"].append(GameResultAnswer(
+                playerId=sender_id or "unknown",
+                playerName=msg_data.get("senderName", "Unknown"),
+                text=msg_data.get("text", ""),
+                isAI=is_ai
+            ))
+
+        # Build rounds list in order
+        rounds_list = []
+        for round_num in sorted(rounds_map.keys()):
+            round_data = rounds_map[round_num]
+            rounds_list.append(GameResultRound(
+                roundNumber=round_num,
+                question=round_data["question"],
+                revealedAnswers=round_data["answers"]
+            ))
+
+        # Extract votes (add timestamp since votes don't currently have them)
+        votes_data = game_data.get("votes", [])
+        votes_list = []
+        now = datetime.datetime.now(datetime.timezone.utc)
+
+        for vote in votes_data:
+            votes_list.append(GameResultVote(
+                roundNumber=vote.get("round", 0),
+                voterId=vote.get("voterId", "unknown"),
+                targetId=vote.get("targetId", "unknown"),
+                timestamp=now  # Backfilled timestamp for MVP
+            ))
+
+        # Extract last round result
+        last_round_result_data = game_data.get("lastRoundResult", {})
+        last_round_result = GameResultLastRound(
+            eliminatedPlayer=last_round_result_data.get("eliminatedPlayerId"),
+            reason=last_round_result_data.get("endReason", "game_ended"),
+            voteCounts=last_round_result_data.get("voteCounts", {})
+        )
+
+        # Build complete GameResult object
+        game_result = GameResult(
+            gameId=game_id,
+            endedAt=datetime.datetime.now(datetime.timezone.utc),
+            language=language,
+            aiModelUsed=ai_model_used,
+            winner=winner,
+            totalRounds=total_rounds,
+            players=players_list,
+            rounds=rounds_list,
+            votes=votes_list,
+            lastRoundResult=last_round_result
+        )
+
+        # Convert to dict for Firestore (Pydantic model_dump handles datetime serialization)
+        game_result_dict = game_result.model_dump(mode='json')
+
+        # Write to game_results collection
+        db.collection("game_results").add(game_result_dict)
+
+        logger.info(f"✓ Successfully archived game {game_id} to game_results collection")
+
+    except Exception as e:
+        # Log error but don't re-raise - analytics failure should not affect gameplay
+        logger.error(
+            f"Failed to archive game {game_id} to game_results: {e}",
+            exc_info=True
+        )
+        # TODO: Consider writing to a 'failed_archives' collection for manual recovery
+
+
 def tally_votes(game_id: str):
     """Counts votes, applies eliminations, and advances to the next phase."""
     db = get_firestore_client()
@@ -647,6 +794,11 @@ def tally_votes(game_id: str):
     update_payload["lastRoundResult"] = round_result
 
     game_ref.update(update_payload)
+
+    # Archive game results when game ends (round 2 or 3)
+    if game_is_over:
+        winner = update_payload.get("winner")
+        _archive_game_result(game_ref, game_data, winner)
 
 def submit_vote(game_id: str, voter_uid: str, target_uid: str):
     """
