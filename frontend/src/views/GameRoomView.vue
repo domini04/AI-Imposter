@@ -49,6 +49,8 @@ const currentQuestion = computed(() => {
 const currentRoundNumber = computed(() => game.value?.currentRound ?? 0);
 
 const isAnswerPhase = computed(() => game.value?.roundPhase === 'ANSWER_SUBMISSION');
+const isVotingPhase = computed(() => game.value?.roundPhase === 'VOTING');
+const isWaitingStatus = computed(() => game.value?.status === 'waiting');
 const hasSubmittedAnswer = computed(() => gameStore.answerStatus === 'submitted');
 const isSubmittingAnswer = computed(() => gameStore.answerStatus === 'submitting');
 
@@ -209,57 +211,67 @@ onUnmounted(() => {
       </aside>
       
       <main class="main-content">
-        <GameStatusDisplay 
-          :status="game.status" 
-          :current-round="game.currentRound"
-          :question="currentQuestion"
-        />
-        <RoundTimer
-          v-if="game.status === 'in_progress'"
-          :round-start="roundStartTime"
-          :round-end="roundEndTime"
-          :phase="game.roundPhase"
-          :auto-trigger="isHost"
-          @expired="handleTimerExpired"
-        />
-        <p v-if="phaseMessage" class="phase-message">{{ phaseMessage }}</p>
-        <ChatDisplay
-          :messages="messages"
-          :players="game.players"
-          :hide-sender-name-rounds="roundsToHideSenderNames"
-        />
-        <section v-if="isAnswerPhase" class="answer-section">
-          <MessageInput
-            :disabled="hasSubmittedAnswer"
-            :is-submitting="isSubmittingAnswer"
-            placeholder="Share your answer for this round…"
-            @submit="handleSubmitAnswer"
+        <section class="top-status">
+          <GameStatusDisplay 
+            :status="game.status" 
+            :current-round="game.currentRound"
+            :question="currentQuestion"
           />
-          <p v-if="submissionMessage" class="submission-feedback">{{ submissionMessage }}</p>
+          <RoundTimer
+            v-if="game.status === 'in_progress'"
+            :round-start="roundStartTime"
+            :round-end="roundEndTime"
+            :phase="game.roundPhase"
+            :auto-trigger="isHost"
+            @expired="handleTimerExpired"
+          />
+          <p v-if="phaseMessage" class="phase-message">{{ phaseMessage }}</p>
         </section>
-        <VotingInterface
-          v-else-if="game.roundPhase === 'VOTING'"
-          :players="game.players"
-          :current-user-id="currentUser?.uid"
-          :disabled="gameStore.voteStatus === 'submitted'"
-          :is-submitting="gameStore.voteStatus === 'submitting'"
-          @vote="handleVote"
-        />
-        <section v-else class="answer-inactive">
-          <template v-if="game.roundPhase === 'GAME_ENDED' && roundSummary">
-            <div class="round-summary">
-              <h3>Final Vote Result (Round {{ roundSummary.round }})</h3>
-              <p>{{ roundSummary.summary }}</p>
-              <ul>
-                <li v-for="vote in roundSummary.votes" :key="vote.targetId">
-                  {{ vote.voteCount }} vote(s) for {{ vote.targetName }} ({{ vote.isImpostor ? 'AI' : 'Human' }})
-                </li>
-              </ul>
-              <p v-if="roundSummary.endReason" class="end-reason">{{ roundSummary.endReason }}</p>
-            </div>
-          </template>
-          <p v-else>Waiting for the next answer submission phase…</p>
-        </section>
+
+        <div :class="['content-grid', { 'with-voting': isVotingPhase }]">
+          <div class="chat-column">
+            <ChatDisplay
+              :messages="messages"
+              :players="game.players"
+              :rounds="game.rounds"
+              :hide-sender-name-rounds="roundsToHideSenderNames"
+            />
+            <section v-if="isAnswerPhase" class="answer-section">
+              <MessageInput
+                :disabled="hasSubmittedAnswer"
+                :is-submitting="isSubmittingAnswer"
+                placeholder="Share your answer for this round…"
+                @submit="handleSubmitAnswer"
+              />
+              <p v-if="submissionMessage" class="submission-feedback">{{ submissionMessage }}</p>
+            </section>
+            <section v-else-if="!isWaitingStatus && !isVotingPhase" class="answer-inactive">
+              <template v-if="game.roundPhase === 'GAME_ENDED' && roundSummary">
+                <div class="round-summary">
+                  <h3>Final Vote Result (Round {{ roundSummary.round }})</h3>
+                  <p>{{ roundSummary.summary }}</p>
+                  <ul>
+                    <li v-for="vote in roundSummary.votes" :key="vote.targetId">
+                      {{ vote.voteCount }} vote(s) for {{ vote.targetName }} ({{ vote.isImpostor ? 'AI' : 'Human' }})
+                    </li>
+                  </ul>
+                  <p v-if="roundSummary.endReason" class="end-reason">{{ roundSummary.endReason }}</p>
+                </div>
+              </template>
+              <p v-else>Waiting for the next answer submission phase…</p>
+            </section>
+          </div>
+
+          <VotingInterface
+            v-if="isVotingPhase"
+            :players="game.players"
+            :current-user-id="currentUser?.uid"
+            :disabled="gameStore.voteStatus === 'submitted'"
+            :is-submitting="gameStore.voteStatus === 'submitting'"
+            @vote="handleVote"
+            class="voting-panel"
+          />
+        </div>
         <p v-if="voteFeedback" class="vote-feedback">{{ voteFeedback }}</p>
       </main>
     </div>
@@ -274,14 +286,14 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: 250px 1fr; /* Sidebar and main content */
   gap: 2rem;
-  max-width: 1200px;
+  max-width: 1600px;
   margin: 1rem auto 2rem;
 }
 
 .game-room-container {
-  max-width: 1200px;
+  max-width: 1800px;
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 2rem;
 }
 
 .game-room-header {
@@ -325,9 +337,41 @@ onUnmounted(() => {
 }
 
 .main-content {
-  /* Styling for the main game area */
   display: flex;
   flex-direction: column;
+}
+
+.top-status {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  background: #fff;
+  padding-bottom: 0.5rem;
+}
+
+.content-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* Default: single column */
+  gap: 1.25rem;
+}
+
+.content-grid.with-voting {
+  grid-template-columns: 2fr 1fr; /* Two columns when voting */
+}
+
+.chat-column {
+  min-height: calc(100vh - 260px);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.main-content :deep(.voting-panel) {
+  align-self: start;
+  position: sticky;
+  top: 6.5rem; /* below sticky status */
+  max-height: calc(100vh - 7.5rem);
+  overflow: auto;
 }
 
 .loading-container {

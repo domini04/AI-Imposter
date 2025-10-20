@@ -737,15 +737,6 @@ def tally_votes(game_id: str):
         })
         game_is_over = True
         end_reason = "All impostors have been eliminated. Humans win!"
-    elif len(active_impostors) >= len(active_humans):
-        update_payload.update({
-            "status": "finished",
-            "roundPhase": "GAME_ENDED",
-            "winner": "ai",
-            "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
-        })
-        game_is_over = True
-        end_reason = "AI count now matches or exceeds human count. AI win by parity."
     elif current_round >= 3:
         update_payload.update({
             "status": "finished",

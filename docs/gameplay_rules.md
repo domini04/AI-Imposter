@@ -50,6 +50,5 @@ Each of the three rounds follows a strict, backend-enforced sequence:
 
 The game ends when one of the following conditions is met:
 
-*   **Human Victory:** All AI impostors have been successfully voted out and eliminated.
-*   **AI Victory (Parity):** The number of AI impostors becomes equal to or greater than the number of human players.
+*   **Human Victory:** All AI impostors have been successfully voted out and eliminated within 3 rounds.
 *   **AI Victory (Survival):** At least one AI impostor survives the final vote at the end of Round 3.

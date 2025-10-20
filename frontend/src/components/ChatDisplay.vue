@@ -10,6 +10,10 @@ const props = defineProps({
     type: Array,
     required: true,
   },
+  rounds: {
+    type: Array,
+    default: () => []
+  },
   hideSenderNameRounds: {
     type: Array,
     default: () => [],
@@ -95,6 +99,18 @@ const groupedMessages = computed(() => {
 
   return groups;
 });
+
+const roundNumberToQuestion = computed(() => {
+  const map = new Map();
+  if (Array.isArray(props.rounds)) {
+    props.rounds.forEach(r => {
+      if (r && typeof r.round === 'number') {
+        map.set(r.round, r.question || '');
+      }
+    });
+  }
+  return map;
+});
 </script>
 
 <template>
@@ -106,6 +122,9 @@ const groupedMessages = computed(() => {
     <div v-else class="chat-content">
       <div v-for="(roundMessages, roundNumber) in groupedMessages" :key="roundNumber" class="round-group">
         <h3 class="round-header">Round {{ roundNumber }}</h3>
+        <p v-if="roundNumberToQuestion.get(Number(roundNumber))" class="round-question">
+          <strong>Question:</strong> {{ roundNumberToQuestion.get(Number(roundNumber)) }}
+        </p>
         <div v-for="message in roundMessages" :key="message.id" class="message">
           <header class="answer-header">
             <strong class="answer-label">Answer {{ message.displayIndex }}</strong>
@@ -130,9 +149,9 @@ const groupedMessages = computed(() => {
   border: 1px solid #eee;
   border-radius: 8px;
   padding: 1.5rem;
-  flex-grow: 1; /* Allows it to take up available space */
-  overflow-y: auto; /* Adds scrolling for long chats */
-  height: 500px; /* Example height */
+  flex-grow: 1;
+  overflow-y: auto;
+  height: calc(100vh - 350px); /* Use more of viewport on desktop */
 }
 
 .empty-chat {
@@ -153,6 +172,12 @@ const groupedMessages = computed(() => {
   border-bottom: 2px solid #007bff;
   padding-bottom: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.round-question {
+  margin-top: -0.5rem;
+  margin-bottom: 1rem;
+  color: #37474f;
 }
 
 .message {

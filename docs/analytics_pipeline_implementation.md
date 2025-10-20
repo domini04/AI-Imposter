@@ -12,11 +12,10 @@ This document provides detailed, actionable steps to build the Phase 1 Analytics
 
 ### Phase 1.1: Foundation
 - ✅ **Step 1:** Define game_results schema - COMPLETE
-- ⏭️ **Step 2:** Extract chat log function - SKIPPED (feature not implemented)
-- ✅ **Step 3:** Archive game results to Firestore - COMPLETE
-- ⏳ **Step 4:** Create BigQuery dataset and table - PENDING
-- ⏳ **Step 5:** Deploy Cloud Function - PENDING
-- ⏳ **Step 6:** End-to-end test - PENDING
+- ✅ **Step 2:** Archive game results to Firestore - COMPLETE
+- ⏳ **Step 3:** Create BigQuery dataset and table - PENDING
+- ⏳ **Step 4:** Deploy Cloud Function - PENDING
+- ⏳ **Step 5:** End-to-end test - PENDING
 
 ### Phase 1.2: Dashboard
 - ⏳ Steps 7-9 - Not started

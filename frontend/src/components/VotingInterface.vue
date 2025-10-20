@@ -75,7 +75,6 @@ const handleSubmit = () => {
   border: 1px solid #eee;
   border-radius: 8px;
   padding: 1.5rem;
-  margin-top: 2rem;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 

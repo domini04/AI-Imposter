@@ -2,7 +2,7 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 
 ## Development Decision Records
 
-### **September 1, 2024 - Hybrid Database Strategy**
+### **September 1, 2025 - Hybrid Database Strategy**
 
 **Issue**: The project requires two distinct types of data handling: low-latency, real-time updates for active game state and large-scale, analytical queries for historical data to be used in AI training. A single database technology is often not optimal for both use cases.
 
@@ -10,7 +10,7 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 
 **Reasoning**: This approach uses the right tool for the job. Firestore's real-time synchronization capabilities are ideal for the interactive gameplay loop. BigQuery is a columnar data warehouse designed for the complex, large-scale analytical queries we will need to perform to extract training data and monitor AI performance, a task for which Firestore is not suited.
 
-### **September 1, 2024 - Frictionless User Authentication**
+### **September 1, 2025 - Frictionless User Authentication**
 
 **Issue**: The MVP of the game should allow players to join and play as quickly as possible, without the friction of a traditional email/password sign-up process. However, the backend still requires a secure and unique identifier for each player.
 
@@ -18,7 +18,7 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 
 **Reasoning**: This strategy provides the best of both worlds for an MVP. It offers a frictionless "guest" experience for the user while still providing the backend with a secure, unique UID for each player. This UID is essential for tracking players within a game and for authentication with our backend API. The complexity of full user accounts (social logins, password recovery) is deferred, allowing us to focus on core gameplay features first.
 
-### **September 3, 2024 - Layered Backend Architecture**
+### **September 3, 2025 - Layered Backend Architecture**
 
 **Issue**: We needed a backend structure that was maintainable, testable, and scalable. A monolithic approach where HTTP handling and business logic are mixed would quickly become difficult to manage.
 
@@ -26,7 +26,7 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 
 **Reasoning**: This layered architecture promotes a strong separation of concerns. It makes the business logic highly reusable and, most importantly, allows for isolated unit testing of the core game rules without the overhead of a web server. This leads to a more robust, maintainable, and scalable codebase.
 
-### **September 5, 2024 - Granular In-Game State Management**
+### **September 5, 2025 - Granular In-Game State Management**
 
 **Issue**: The existing `status` field in the `game_rooms` document (with values like "waiting", "in_progress") is too broad to manage the distinct phases within an active game round. It doesn't provide a mechanism to enforce rules like preventing votes during the answer submission phase.
 
@@ -34,7 +34,7 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 
 **Reasoning**: A granular `roundPhase` field establishes an authoritative state machine for the game flow. It allows the backend to validate player actions against the current phase, preventing invalid operations and ensuring the game progresses according to the rules. This separation of concerns makes the core game logic more robust, easier to test, and less prone to race conditions or client-side manipulation.
 
-### **September 5, 2024 - Handling Time-Based State Transitions**
+### **September 5, 2025 - Handling Time-Based State Transitions**
 
 **Issue**: Our game requires server-authoritative state transitions to occur after a set time (e.g., ending the answer submission phase after 3 minutes). However, stateless web servers like FastAPI cannot natively "wait" or schedule future actions, presenting a challenge for managing the game's lifecycle automatically.
 
