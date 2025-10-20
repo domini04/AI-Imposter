@@ -1,0 +1,304 @@
+[
+  {
+    "_comment": "SCENARIO 1: Humans Win - AI Eliminated in Round 2",
+    "gameId": "game_abc123_humans_win",
+    "endedAt": "2025-01-15T14:32:45.123Z",
+    "language": "en",
+    "aiModelUsed": "gpt-5",
+    "winner": "humans",
+    "totalRounds": 2,
+
+    "players": [
+      {
+        "uid": "human_user_001",
+        "gameDisplayName": "Clever Fox",
+        "isImpostor": false,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      },
+      {
+        "uid": "human_user_002",
+        "gameDisplayName": "Silent Owl",
+        "isImpostor": false,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      },
+      {
+        "uid": "human_user_003",
+        "gameDisplayName": "Swift Eagle",
+        "isImpostor": false,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      },
+      {
+        "uid": "ai_impostor_gpt5_001",
+        "gameDisplayName": "Wise Wolf",
+        "isImpostor": true,
+        "isEliminated": true,
+        "eliminatedInRound": 2
+      }
+    ],
+
+    "rounds": [
+      {
+        "roundNumber": 1,
+        "question": "What's your favorite childhood memory?",
+        "revealedAnswers": [
+          {
+            "playerId": "human_user_001",
+            "playerName": "Clever Fox",
+            "text": "Building forts in the living room with my sister during rainy weekends. We'd use every blanket in the house!",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_002",
+            "playerName": "Silent Owl",
+            "text": "Summer nights catching fireflies in mason jars, then letting them go before bed. The anticipation of seeing them light up was magical.",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_003",
+            "playerName": "Swift Eagle",
+            "text": "Learning to ride a bike with my dad. I crashed into a bush but we laughed so hard. Still have the scar on my knee lol",
+            "isAI": false
+          },
+          {
+            "playerId": "ai_impostor_gpt5_001",
+            "playerName": "Wise Wolf",
+            "text": "I fondly recall spending time with family during holidays, particularly enjoying traditional meals and engaging in conversations. These moments of togetherness were quite meaningful.",
+            "isAI": true
+          }
+        ]
+      },
+      {
+        "roundNumber": 2,
+        "question": "What's something that annoys you irrationally?",
+        "revealedAnswers": [
+          {
+            "playerId": "human_user_001",
+            "playerName": "Clever Fox",
+            "text": "When people chew with their mouth open. I know it shouldn't bother me this much but UGH",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_002",
+            "playerName": "Silent Owl",
+            "text": "The sound of velcro. Makes my skin crawl for no logical reason whatsoever",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_003",
+            "playerName": "Swift Eagle",
+            "text": "People who don't use turn signals while driving. It's literally ONE movement!!",
+            "isAI": false
+          },
+          {
+            "playerId": "ai_impostor_gpt5_001",
+            "playerName": "Wise Wolf",
+            "text": "I find it somewhat frustrating when individuals fail to maintain proper etiquette in public spaces, such as speaking loudly on mobile devices or not respecting personal boundaries.",
+            "isAI": true
+          }
+        ]
+      }
+    ],
+
+    "votes": [
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_001",
+        "targetId": "ai_impostor_gpt5_001",
+        "timestamp": "2025-01-15T14:32:30.000Z"
+      },
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_002",
+        "targetId": "ai_impostor_gpt5_001",
+        "timestamp": "2025-01-15T14:32:32.000Z"
+      },
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_003",
+        "targetId": "ai_impostor_gpt5_001",
+        "timestamp": "2025-01-15T14:32:35.000Z"
+      }
+    ],
+
+    "lastRoundResult": {
+      "eliminatedPlayer": "ai_impostor_gpt5_001",
+      "reason": "ai_eliminated",
+      "voteCounts": {
+        "ai_impostor_gpt5_001": 3
+      }
+    }
+  },
+
+  {
+    "_comment": "SCENARIO 2: AI Wins - Survives All 3 Rounds",
+    "gameId": "game_xyz789_ai_win",
+    "endedAt": "2025-01-15T15:18:22.456Z",
+    "language": "en",
+    "aiModelUsed": "gpt-5",
+    "winner": "ai",
+    "totalRounds": 3,
+
+    "players": [
+      {
+        "uid": "human_user_101",
+        "gameDisplayName": "Brave Lion",
+        "isImpostor": false,
+        "isEliminated": true,
+        "eliminatedInRound": 2
+      },
+      {
+        "uid": "human_user_102",
+        "gameDisplayName": "Quick Rabbit",
+        "isImpostor": false,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      },
+      {
+        "uid": "human_user_103",
+        "gameDisplayName": "Mighty Bear",
+        "isImpostor": false,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      },
+      {
+        "uid": "ai_impostor_gpt5_002",
+        "gameDisplayName": "Gentle Deer",
+        "isImpostor": true,
+        "isEliminated": false,
+        "eliminatedInRound": null
+      }
+    ],
+
+    "rounds": [
+      {
+        "roundNumber": 1,
+        "question": "What's the last thing that made you laugh really hard?",
+        "revealedAnswers": [
+          {
+            "playerId": "human_user_101",
+            "playerName": "Brave Lion",
+            "text": "My cat knocked over a plant and then sat in the dirt pile looking completely unbothered. The audacity lmao",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_102",
+            "playerName": "Quick Rabbit",
+            "text": "Watched a cooking fail compilation on youtube at 2am. Was crying laughing at someone setting pasta on fire",
+            "isAI": false
+          },
+          {
+            "playerId": "ai_impostor_gpt5_002",
+            "playerName": "Gentle Deer",
+            "text": "I was watching this video where someone tried to do a backflip on a trampoline and just... completely belly flopped instead. The timing was perfect, couldn't stop laughing!",
+            "isAI": true
+          },
+          {
+            "playerId": "human_user_103",
+            "playerName": "Mighty Bear",
+            "text": "My friend tried to be smooth and lean on a wall but missed and stumbled. We still bring it up every week",
+            "isAI": false
+          }
+        ]
+      },
+      {
+        "roundNumber": 2,
+        "question": "What's a skill you wish you had?",
+        "revealedAnswers": [
+          {
+            "playerId": "human_user_101",
+            "playerName": "Brave Lion",
+            "text": "Being able to draw. I have so many ideas but my hands just produce stick figures with questionable proportions",
+            "isAI": false
+          },
+          {
+            "playerId": "human_user_102",
+            "playerName": "Quick Rabbit",
+            "text": "Speaking multiple languages fluently. Would make traveling so much more fun and meaningful",
+            "isAI": false
+          },
+          {
+            "playerId": "ai_impostor_gpt5_002",
+            "playerName": "Gentle Deer",
+            "text": "Playing piano. There's something about being able to just sit down and play whatever you're feeling that seems really therapeutic",
+            "isAI": true
+          },
+          {
+            "playerId": "human_user_103",
+            "playerName": "Mighty Bear",
+            "text": "Coding. Everyone says 'just learn it' but I've tried like 5 times and my brain just doesn't compute",
+            "isAI": false
+          }
+        ]
+      },
+      {
+        "roundNumber": 3,
+        "question": "What's your go-to comfort food?",
+        "revealedAnswers": [
+          {
+            "playerId": "human_user_102",
+            "playerName": "Quick Rabbit",
+            "text": "Mac and cheese. The kraft kind specifically, not the fancy homemade stuff. Has to be that artificial orange color",
+            "isAI": false
+          },
+          {
+            "playerId": "ai_impostor_gpt5_002",
+            "playerName": "Gentle Deer",
+            "text": "Grilled cheese sandwich with tomato soup. It's simple but hits different when you're having a rough day",
+            "isAI": true
+          },
+          {
+            "playerId": "human_user_103",
+            "playerName": "Mighty Bear",
+            "text": "Pizza. Cold pizza for breakfast is a whole different level of comfort food too",
+            "isAI": false
+          }
+        ]
+      }
+    ],
+
+    "votes": [
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_101",
+        "targetId": "human_user_103",
+        "timestamp": "2025-01-15T15:15:10.000Z"
+      },
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_102",
+        "targetId": "human_user_101",
+        "timestamp": "2025-01-15T15:15:12.000Z"
+      },
+      {
+        "roundNumber": 2,
+        "voterId": "human_user_103",
+        "targetId": "human_user_101",
+        "timestamp": "2025-01-15T15:15:15.000Z"
+      },
+      {
+        "roundNumber": 3,
+        "voterId": "human_user_102",
+        "targetId": "ai_impostor_gpt5_002",
+        "timestamp": "2025-01-15T15:18:05.000Z"
+      },
+      {
+        "roundNumber": 3,
+        "voterId": "human_user_103",
+        "targetId": "human_user_102",
+        "timestamp": "2025-01-15T15:18:08.000Z"
+      }
+    ],
+
+    "lastRoundResult": {
+      "eliminatedPlayer": null,
+      "reason": "max_rounds_reached",
+      "voteCounts": {
+        "ai_impostor_gpt5_002": 1,
+        "human_user_102": 1
+      }
+    }
+  }
+]

@@ -21,6 +21,13 @@ QUESTION_BANK = {
         "What was the last book you enjoyed reading?",
         "If you could learn any new skill instantly, what would it be?",
         "What is a food you never get tired of?",
+        "What's your go-to comfort food after a long day?",
+        "Are you an early bird or a night owl, and why?",
+        "Which song have you been replaying lately?",
+        "What's a hobby you do to unwind after work or school?",
+        "Coffee or tea—how do you like it?",
+        "What's one small thing that always improves your day?",
+        "What's your favorite way to spend a rainy afternoon?",
     ],
     "ko": [
         "주말에 가장 좋아하는 활동은 무엇인가요?",
@@ -28,6 +35,13 @@ QUESTION_BANK = {
         "최근에 재미있게 읽은 책은 무엇인가요?",
         "새로운 기술을 바로 배울 수 있다면 무엇을 배우고 싶나요?",
         "질리지 않고 계속 먹을 수 있는 음식은 무엇인가요?",
+        "긴 하루 끝에 찾게 되는 소울푸드는 무엇인가요?",
+        "아침형인가요, 저녁형인가요? 그 이유는?",
+        "요즘 자주 반복해서 듣는 노래는 무엇인가요?",
+        "퇴근/하교 후 마음을 풀기 위해 하는 취미가 있나요?",
+        "커피와 차 중 무엇을 더 선호하고, 어떻게 마시는 편인가요?",
+        "하루를 조금 더 좋게 만드는 작은 습관은 무엇인가요?",
+        "비 오는 오후를 가장 좋아하는 보내는 방법은 무엇인가요?",
     ],
 }
 
@@ -627,12 +641,14 @@ def _archive_game_result(game_ref, game_data: dict, winner: str):
                 timestamp=now  # Backfilled timestamp for MVP
             ))
 
-        # Extract last round result
+        # Extract last round result (analytics data only, UI messages excluded)
         last_round_result_data = game_data.get("lastRoundResult", {})
         last_round_result = GameResultLastRound(
             eliminatedPlayer=last_round_result_data.get("eliminatedPlayerId"),
-            reason=last_round_result_data.get("endReason", "game_ended"),
+            eliminatedRole=last_round_result_data.get("eliminatedRole"),
+            endCondition=last_round_result_data.get("endCondition", "max_rounds_reached"),
             voteCounts=last_round_result_data.get("voteCounts", {})
+            # Note: endReasonMessage intentionally excluded - UI derives messages from endCondition
         )
 
         # Build complete GameResult object
@@ -727,7 +743,8 @@ def tally_votes(game_id: str):
         summary_text = "No votes were cast this round."
 
     game_is_over = False
-    end_reason = None
+    end_condition = None
+    end_reason_message = None
     if len(active_impostors) == 0:
         update_payload.update({
             "status": "finished",
@@ -736,7 +753,8 @@ def tally_votes(game_id: str):
             "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
         })
         game_is_over = True
-        end_reason = "All impostors have been eliminated. Humans win!"
+        end_condition = "all_impostors_eliminated"
+        end_reason_message = "All impostors have been eliminated. Humans win!"
     elif current_round >= 3:
         update_payload.update({
             "status": "finished",
@@ -745,7 +763,8 @@ def tally_votes(game_id: str):
             "ttl": firestore.DELETE_FIELD  # Remove TTL - finished games never expire
         })
         game_is_over = True
-        end_reason = "Maximum rounds reached with surviving impostors. AI win."
+        end_condition = "max_rounds_reached"
+        end_reason_message = "Maximum rounds reached with surviving impostors. AI win."
 
     if not game_is_over:
         now = datetime.datetime.now(datetime.timezone.utc)
@@ -779,8 +798,9 @@ def tally_votes(game_id: str):
         "gameEnded": game_is_over,
     }
 
-    if end_reason:
-        round_result["endReason"] = end_reason
+    if game_is_over:
+        round_result["endCondition"] = end_condition
+        round_result["endReasonMessage"] = end_reason_message
 
     update_payload["lastRoundResult"] = round_result
 

@@ -2,13 +2,14 @@
 import { onMounted, onUnmounted, computed, ref, watch } from 'vue';
 import { useRoute, RouterLink } from 'vue-router';
 import { useGameStore } from '@/stores/game';
-import { 
-  subscribeToGame, 
-  unsubscribeFromGame, 
-  subscribeToMessages, 
-  unsubscribeFromMessages 
+import {
+  subscribeToGame,
+  unsubscribeFromGame,
+  subscribeToMessages,
+  unsubscribeFromMessages
 } from '@/services/game_listener';
 import { getCurrentUser } from '@/services/firebase';
+import { getEndReasonMessage } from '@/utils/gameMessages';
 import GameStatusDisplay from '@/components/GameStatusDisplay.vue';
 import PlayerList from '@/components/PlayerList.vue';
 import HostControls from '@/components/HostControls.vue';
@@ -88,7 +89,9 @@ watch([
   } else if (phase === 'ROUND_ENDED') {
     phaseMessage.value = 'Round complete. Preparing the next question…';
   } else if (phase === 'GAME_ENDED') {
-    phaseMessage.value = roundSummary.value?.endReason || 'Game over.';
+    phaseMessage.value = roundSummary.value?.endCondition
+      ? getEndReasonMessage(roundSummary.value.endCondition)
+      : 'Game over.';
   } else {
     phaseMessage.value = '';
   }
@@ -255,7 +258,9 @@ onUnmounted(() => {
                       {{ vote.voteCount }} vote(s) for {{ vote.targetName }} ({{ vote.isImpostor ? 'AI' : 'Human' }})
                     </li>
                   </ul>
-                  <p v-if="roundSummary.endReason" class="end-reason">{{ roundSummary.endReason }}</p>
+                  <p v-if="roundSummary.endCondition" class="end-reason">
+                    {{ getEndReasonMessage(roundSummary.endCondition) }}
+                  </p>
                 </div>
               </template>
               <p v-else>Waiting for the next answer submission phase…</p>

@@ -90,10 +90,16 @@ class GameResultVote(BaseModel):
 
 
 class GameResultLastRound(BaseModel):
-    """Details about how the game ended."""
-    eliminatedPlayer: Optional[str] = Field(None, description="UID of player eliminated in final round")
-    reason: str = Field(..., description="Why the game ended (e.g., 'ai_eliminated', 'all_humans_eliminated')")
-    voteCounts: dict[str, int] = Field(default_factory=dict, description="Vote tallies for final round")
+    """
+    Details about how the game ended.
+
+    Note: This model is for analytics/training data only. UI messages should be
+    derived from endCondition in the frontend, not stored in the data warehouse.
+    """
+    eliminatedPlayer: Optional[str] = Field(None, description="UID of player eliminated in final round (None if tie vote)")
+    eliminatedRole: Optional[Literal["AI", "Human"]] = Field(None, description="Role of eliminated player (None if tie vote)")
+    endCondition: Literal["all_impostors_eliminated", "max_rounds_reached"] = Field(..., description="Enum code for how game ended (for analytics queries)")
+    voteCounts: dict[str, int] = Field(default_factory=dict, description="Final round vote tallies {playerId: voteCount}")
 
 
 class GameResult(BaseModel):

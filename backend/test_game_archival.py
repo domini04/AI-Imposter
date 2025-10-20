@@ -84,8 +84,11 @@ def create_mock_game_data():
         "votes": votes,
         "lastRoundResult": {
             "eliminatedPlayerId": ai_uid,
-            "endReason": "All impostors have been eliminated. Humans win!",
+            "eliminatedRole": "AI",
+            "endCondition": "all_impostors_eliminated",
+            "endReasonMessage": "All impostors have been eliminated. Humans win!",  # In game_rooms (operational)
             "voteCounts": {ai_uid: 1}
+            # Note: endReasonMessage is in game_rooms but excluded from analytics archive
         }
     }
 
