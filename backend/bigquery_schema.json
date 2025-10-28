@@ -1,0 +1,97 @@
+[
+  {
+    "name": "gameId",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Unique identifier for the game"
+  },
+  {
+    "name": "endedAt",
+    "type": "TIMESTAMP",
+    "mode": "REQUIRED",
+    "description": "When the game concluded"
+  },
+  {
+    "name": "language",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Game language (en or ko)"
+  },
+  {
+    "name": "aiModelUsed",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "AI model identifier (e.g., gpt-5)"
+  },
+  {
+    "name": "winner",
+    "type": "STRING",
+    "mode": "REQUIRED",
+    "description": "Winner of the game (humans or ai)"
+  },
+  {
+    "name": "totalRounds",
+    "type": "INTEGER",
+    "mode": "REQUIRED",
+    "description": "Number of rounds played"
+  },
+  {
+    "name": "players",
+    "type": "RECORD",
+    "mode": "REPEATED",
+    "description": "Array of player data",
+    "fields": [
+      {"name": "uid", "type": "STRING", "mode": "REQUIRED"},
+      {"name": "gameDisplayName", "type": "STRING", "mode": "REQUIRED"},
+      {"name": "isImpostor", "type": "BOOLEAN", "mode": "REQUIRED"},
+      {"name": "isEliminated", "type": "BOOLEAN", "mode": "REQUIRED"},
+      {"name": "eliminatedInRound", "type": "INTEGER", "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "rounds",
+    "type": "RECORD",
+    "mode": "REPEATED",
+    "description": "Array of round data with revealed answers",
+    "fields": [
+      {"name": "roundNumber", "type": "INTEGER", "mode": "REQUIRED"},
+      {"name": "question", "type": "STRING", "mode": "REQUIRED"},
+      {
+        "name": "revealedAnswers",
+        "type": "RECORD",
+        "mode": "REPEATED",
+        "description": "Answers revealed in this round",
+        "fields": [
+          {"name": "playerId", "type": "STRING", "mode": "REQUIRED"},
+          {"name": "playerName", "type": "STRING", "mode": "REQUIRED"},
+          {"name": "text", "type": "STRING", "mode": "REQUIRED"},
+          {"name": "isAI", "type": "BOOLEAN", "mode": "REQUIRED"}
+        ]
+      }
+    ]
+  },
+  {
+    "name": "votes",
+    "type": "RECORD",
+    "mode": "REPEATED",
+    "description": "All votes cast during the game",
+    "fields": [
+      {"name": "roundNumber", "type": "INTEGER", "mode": "REQUIRED"},
+      {"name": "voterId", "type": "STRING", "mode": "REQUIRED"},
+      {"name": "targetId", "type": "STRING", "mode": "REQUIRED"},
+      {"name": "timestamp", "type": "TIMESTAMP", "mode": "REQUIRED"}
+    ]
+  },
+  {
+    "name": "lastRoundResult",
+    "type": "RECORD",
+    "mode": "REQUIRED",
+    "description": "Details about how the game ended",
+    "fields": [
+      {"name": "eliminatedPlayer", "type": "STRING", "mode": "NULLABLE"},
+      {"name": "eliminatedRole", "type": "STRING", "mode": "NULLABLE"},
+      {"name": "endCondition", "type": "STRING", "mode": "REQUIRED"},
+      {"name": "voteCounts", "type": "JSON", "mode": "REQUIRED"}
+    ]
+  }
+]

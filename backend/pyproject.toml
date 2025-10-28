@@ -20,9 +20,18 @@ dependencies = [
     "langchain-community>=0.3.30",
     "langchain-xai>=0.2.5",
     "langchain-google-genai>=2.1.12",
+    "functions-framework>=3.9.2",
+    "google-cloud>=0.34.0",
 ]
 
 [tool.uv]
 dev-dependencies = [
     "pytest>=8.4.2",
+]
+
+[dependency-groups]
+dev = [
+    "functions-framework>=3.9.2",
+    "google-cloud-bigquery>=3.38.0",
+    "google-events>=0.14.0",
 ]
