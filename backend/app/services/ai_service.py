@@ -67,7 +67,7 @@ FALLBACK_RESPONSES_KO: Final[List[str]] = [
 # ============================================================================
 
 # English system prompt - defines AI's role and behavior
-SYSTEM_PROMPT_EN: Final[str] = """You are {nickname}, a human player in a social deduction game.
+SYSTEM_PROMPT_EN: Final[str] = """You are a human player in a social deduction game.
 
 Other players are trying to identify AI impostors among the group, so your goal is to respond naturally and authentically like a real person would.
 
@@ -155,7 +155,6 @@ def _create_prompt_template(language: str = "en") -> ChatPromptTemplate:
         ValueError: If unsupported language is requested.
 
     Template Variables:
-        - nickname: AI player's in-game display name
         - round_number: Current round number (1-3)
         - conversation_history: Formatted previous rounds (empty for round 1)
         - question: Current round's question
@@ -195,7 +194,6 @@ def _build_chain(model_id: str, language: str) -> Runnable:
     Usage:
         chain = _build_chain("gpt-5", "en")
         response = chain.invoke({
-            "nickname": "Silent Wolf",
             "round_number": 2,
             "conversation_history": "...",
             "question": "What is your hobby?"
@@ -297,7 +295,6 @@ def generate_ai_response(
     question: str,
     language: str,
     round_number: int,
-    nickname: str,
     conversation_history: List[Dict[str, str]],
     game_id: Optional[str] = None
 ) -> str:
@@ -313,7 +310,6 @@ def generate_ai_response(
         question: The question for this round (e.g., "What is your hobby?")
         language: Language code ("en" or "ko"). Currently only "en" supported.
         round_number: Current round number (1-3)
-        nickname: AI player's in-game display name (e.g., "Silent Wolf")
         conversation_history: Structured history from previous rounds.
                              Format: [{"round": 1, "question": "...", "your_answer": "..."}]
                              Empty list for round 1.
@@ -336,7 +332,6 @@ def generate_ai_response(
         ...     question="What is your favorite hobby?",
         ...     language="en",
         ...     round_number=1,
-        ...     nickname="Silent Wolf",
         ...     conversation_history=[],
         ...     game_id="game_abc123"
         ... )
@@ -355,7 +350,6 @@ def generate_ai_response(
 
     # Prepare variables for prompt template
     variables = {
-        "nickname": nickname,
         "round_number": round_number,
         "conversation_history": formatted_history,
         "question": question
@@ -365,7 +359,7 @@ def generate_ai_response(
     try:
         logger.info(
             f"Generating AI response: game={game_id}, round={round_number}, "
-            f"model={model_id}, nickname={nickname}"
+            f"model={model_id}"
         )
 
         response = chain.invoke(variables)

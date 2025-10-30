@@ -4,24 +4,40 @@ import os
 
 def initialize_firebase():
     """
-    Initializes the Firebase Admin SDK using credentials from environment variables.
-    This function should be called once when the FastAPI application starts.
+    Initializes the Firebase Admin SDK with environment-aware credential detection.
+
+    - Cloud Run: Uses Application Default Credentials (automatic)
+    - Local Dev: Uses service account key file from GOOGLE_APPLICATION_CREDENTIALS
     """
-    # The GOOGLE_APPLICATION_CREDENTIALS environment variable should be set to the
-    # path of your Firebase service account key JSON file.
-    # This is the standard and most secure way to authenticate server-side applications.
-    cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
-    if not cred_path:
-        raise ValueError("GOOGLE_APPLICATION_CREDENTIALS environment variable not set.")
+    # Check if running in Cloud Run (K_SERVICE is automatically set by Cloud Run)
+    if os.getenv("K_SERVICE"):
+        # Running in Cloud Run - use Application Default Credentials
+        # No file or env var needed! Cloud Run provides credentials via metadata server
+        try:
+            firebase_admin.initialize_app()
+            print("✅ Firebase initialized with Application Default Credentials (Cloud Run)")
+        except Exception as e:
+            print(f"❌ Error initializing Firebase with ADC: {e}")
+            raise
+    else:
+        # Running locally - use service account key file
+        cred_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 
-    try:
-        cred = credentials.Certificate(cred_path)
-        firebase_admin.initialize_app(cred)
-        print("Firebase Admin SDK initialized successfully.")
-    except Exception as e:
-        print(f"Error initializing Firebase Admin SDK: {e}")
-        raise
+        if not cred_path:
+            raise ValueError(
+                "GOOGLE_APPLICATION_CREDENTIALS environment variable not set. "
+                "Required for local development. "
+                "Set it to the path of your Firebase service account JSON file."
+            )
+
+        try:
+            cred = credentials.Certificate(cred_path)
+            firebase_admin.initialize_app(cred)
+            print("✅ Firebase initialized with service account key (Local)")
+        except Exception as e:
+            print(f"❌ Error initializing Firebase with file: {e}")
+            raise
 
 def get_firestore_client():
     """

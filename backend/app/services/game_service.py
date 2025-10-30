@@ -206,7 +206,6 @@ def _enqueue_ai_answers(game_ref, ai_players, round_number):
                 question=current_question,
                 language=game_data.get("language", "en"),
                 round_number=round_number,
-                nickname=ai.get("gameDisplayName"),
                 conversation_history=history,
                 game_id=game_ref.id
             )

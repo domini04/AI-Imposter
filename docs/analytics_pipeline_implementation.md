@@ -1,7 +1,7 @@
 # Analytics Pipeline - Step-by-Step Implementation Guide
 
-**Last Updated:** October 16, 2025
-**Status:** Phase 1.1 Steps 1-3 Complete, Steps 4-6 In Progress
+**Last Updated:** October 30, 2025
+**Status:** Phase 1.1 Complete (Steps 1-5), End-to-End Testing Pending
 **Related:** [pipelines_architecture.md](./pipelines_architecture.md)
 
 This document provides detailed, actionable steps to build the Phase 1 Analytics Pipeline. Follow these steps sequentially to achieve a working data pipeline.
@@ -13,9 +13,9 @@ This document provides detailed, actionable steps to build the Phase 1 Analytics
 ### Phase 1.1: Foundation
 - ✅ **Step 1:** Define game_results schema - COMPLETE
 - ✅ **Step 2:** Archive game results to Firestore - COMPLETE
-- ⏳ **Step 3:** Create BigQuery dataset and table - PENDING
-- ⏳ **Step 4:** Deploy Cloud Function - PENDING
-- ⏳ **Step 5:** End-to-end test - PENDING
+- ✅ **Step 3:** Create BigQuery dataset and table - COMPLETE
+- ✅ **Step 4:** Deploy Cloud Function - COMPLETE
+- ⏳ **Step 5:** End-to-end test - READY FOR TESTING
 
 ### Phase 1.2: Dashboard
 - ⏳ Steps 7-9 - Not started
@@ -156,7 +156,7 @@ uv run python -c "from app.services.game_service import _archive_game_result; pr
 
 ---
 
-### Step 4: Create BigQuery Dataset and Table
+### Step 3: Create BigQuery Dataset and Table ✅ COMPLETED
 
 **Task:** Set up BigQuery infrastructure to receive game data.
 
@@ -277,9 +277,11 @@ bq show --schema --format=prettyjson \
   ai_imposter_6368c:game_analytics_dataset.game_analytics
 ```
 
+**Status:** ✅ Complete - BigQuery dataset and table created with schema defined in `backend/bigquery_schema.json`
+
 ---
 
-### Step 5: Create Cloud Function
+### Step 4: Deploy Cloud Function ✅ COMPLETED
 
 **Task:** Deploy a Cloud Function that triggers on new `game_results` documents.
 
@@ -418,9 +420,23 @@ gcloud functions describe archive-game --region=us-central1
 gcloud functions logs read archive-game --region=us-central1 --limit=10
 ```
 
+**Status:** ✅ Complete - Cloud Function deployed to `us-central1` with Firestore trigger on `game_results` collection. Function includes:
+- Firestore onCreate trigger
+- BigQuery streaming insert
+- Error handling and logging
+- Dependencies: functions-framework, google-cloud-bigquery, google-events
+
+**Deployment Details:**
+- Region: us-central1
+- Runtime: Python 3.11
+- Memory: 512MB
+- Timeout: 60s
+- Max Instances: 10
+- IAM permissions configured for Secret Manager access
+
 ---
 
-### Step 6: End-to-End Test
+### Step 5: End-to-End Test
 
 **Task:** Verify complete pipeline works from game finish to BigQuery.
 

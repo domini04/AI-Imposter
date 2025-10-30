@@ -70,7 +70,6 @@ def test_prompts():
     # Test 3: Prompt rendering (Round 1, no history)
     print("\n✓ Test 3: Prompt rendering - Round 1 (no history)")
     prompt_vars_round1 = {
-        "nickname": "Silent Wolf",
         "round_number": 1,
         "conversation_history": "",
         "question": "What is your favorite hobby?"
@@ -90,7 +89,6 @@ def test_prompts():
     # Test 4: Prompt rendering (Round 3, with history)
     print("\n✓ Test 4: Prompt rendering - Round 3 (with history)")
     prompt_vars_round3 = {
-        "nickname": "Silent Wolf",
         "round_number": 3,
         "conversation_history": formatted_history,
         "question": "What was the last book you enjoyed reading?"
@@ -112,7 +110,6 @@ def test_prompts():
     system_content = messages_round3[0].content
 
     checks = [
-        ("Nickname injected", "Silent Wolf" in system_content),
         ("Round number injected", "round 3" in system_content),
         ("Question in user prompt", "What was the last book" in user_content),
         ("History in user prompt", "Previous rounds:" in user_content),

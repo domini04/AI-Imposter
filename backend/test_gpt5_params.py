@@ -44,7 +44,7 @@ def test_params():
     print("Test 3: With ChatPromptTemplate (production-like)")
     try:
         prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are {nickname}, a human player in a game. Answer naturally in 2-5 sentences."),
+            ("system", "You are a human player in a game. Answer naturally in 2-3 sentences."),
             ("human", "Question: {question}\n\nYour response:")
         ])
         llm = ChatOpenAI(model="gpt-5", temperature=0.8, max_tokens=250)
@@ -53,7 +53,6 @@ def test_params():
         chain = prompt | llm | parser
 
         response = chain.invoke({
-            "nickname": "Silent Wolf",
             "question": "What is your favorite hobby?"
         })
 

@@ -101,3 +101,29 @@ This document serves as an architectural decision record (ADR). Its purpose is t
 **Decision**: Updated the backend to aggregate history from both `pending_messages` and the persisted `messages` collection when building the prompt context. The AI prompt formatter was also expanded to display every player's prior answers, ensuring the information survives eventual consistency while the next round begins.
 
 **Reasoning**: Reading from both collections guarantees we keep the latest round answers even before Firestore finishes propagating writes. This makes the AI more consistent, lets it react to human responses, and improves trace observability without adding new synchronization primitives.
+
+### **October 30, 2025 - Cloud Run HTTPS Redirect Issue**
+
+**Issue**: After deploying to Cloud Run, the frontend could not communicate with the backend despite correct CORS configuration. Browser console showed "mixed content" errors and misleading CORS failure messages. The root cause was FastAPI generating HTTP redirects (for trailing slash normalization) when it should generate HTTPS redirects, triggering browser security blocks.
+
+**Decision**: Implemented a `ProxyHeadersMiddleware` class in `main.py` that reads the `X-Forwarded-Proto` header from Cloud Run's load balancer and updates the ASGI `scope["scheme"]` to match the original protocol before passing the request to FastAPI. The middleware is registered before other middleware to ensure all subsequent layers see the corrected scheme.
+
+**Reasoning**: Cloud Run terminates SSL at the load balancer and forwards plain HTTP to containers, losing visibility of the original protocol. The load balancer adds `X-Forwarded-Proto: https` to preserve this information, but Uvicorn doesn't automatically use it to set `scope["scheme"]`. FastAPI uses `scope["scheme"]` to generate redirect URLs, so without correction it produces `http://` URLs even though clients connected via `https://`, violating browser mixed content policies. By trusting the forwarded header from Cloud Run's load balancer (which is safe since it's a controlled environment), we restore FastAPI's ability to generate correct HTTPS URLs. This pattern is standard for any ASGI application behind a reverse proxy that terminates SSL.
+
+**Reference**: See `docs/troubleshooting.md` for detailed analysis including request flow diagrams, core concepts (SSL termination, ASGI scope, middleware patterns), and verification steps.
+
+### **October 30, 2025 - Complete Cloud Deployment Architecture**
+
+**Issue**: MVP was running locally on developer machine, limiting accessibility and preventing real-world testing. Needed production deployment to enable external playtesting and validate cloud architecture.
+
+**Decision**: Deployed full stack to GCP:
+- Backend: Cloud Run (FastAPI + Uvicorn, auto-scaling serverless)
+- Frontend: Firebase Hosting (global CDN, static assets)
+- Database: Firestore (existing, real-time)
+- Analytics: BigQuery + Cloud Functions (data pipeline)
+- Secrets: Secret Manager (API keys)
+- Region: asia-northeast3 (Seoul) for backend
+
+**Reasoning**: Cloud Run offers optimal cost-performance for sporadic traffic (scales to zero), Firebase Hosting provides free global CDN, and serverless architecture eliminates server management overhead. This setup costs ~$2.50/month for MVP usage (3000 games/month), scaling linearly with actual usage rather than requiring upfront capacity planning. The serverless approach eliminates server management, provides automatic HTTPS, and enables zero-cost idle periods. This architecture supports the analytics pipeline deployment while maintaining separation of concerns between real-time gameplay (Firestore) and analytical queries (BigQuery).
+
+**Reference**: See `docs/cloud_infrastructure.md` for complete deployment architecture and procedures.

@@ -34,7 +34,6 @@ def test_ai_generation_round1():
         "question": "What is your favorite hobby?",
         "language": "en",
         "round_number": 1,
-        "nickname": "Silent Wolf",
         "conversation_history": [],  # Empty for round 1
         "game_id": "test_integration_001"
     }
@@ -42,7 +41,7 @@ def test_ai_generation_round1():
     print("Test Input:")
     print(f"  Model: {test_data['model_id']}")
     print(f"  Question: {test_data['question']}")
-    print(f"  Nickname: {test_data['nickname']}")
+    # Nickname removed from AI chain variables
     print(f"  Round: {test_data['round_number']} (no history)")
     print()
 
@@ -97,7 +96,6 @@ def test_ai_generation_round2():
         "question": "What was your last vacation like?",
         "language": "en",
         "round_number": 2,
-        "nickname": "Silent Wolf",
         "conversation_history": [
             {
                 "round": 1,
@@ -111,7 +109,7 @@ def test_ai_generation_round2():
     print("\nTest Input:")
     print(f"  Model: {test_data['model_id']}")
     print(f"  Question: {test_data['question']}")
-    print(f"  Nickname: {test_data['nickname']}")
+    # Nickname removed from AI chain variables
     print(f"  Round: {test_data['round_number']} (with history)")
     print(f"  History: {len(test_data['conversation_history'])} previous rounds")
     print()

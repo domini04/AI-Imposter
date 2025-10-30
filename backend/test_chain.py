@@ -48,7 +48,6 @@ def test_chain():
     print("\n✓ Test 3: Chain invocation (dry run - checks interface)")
 
     sample_variables = {
-        "nickname": "Silent Wolf",
         "round_number": 1,
         "conversation_history": "",  # Empty for round 1
         "question": "What is your favorite hobby?"

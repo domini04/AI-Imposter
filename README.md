@@ -1,5 +1,7 @@
 ## Reverse Turing (AI Impostor Game)
 
+**[➡️ Play the live game here!](https://ai-imposter-6368c.web.app/)**
+
 ### Overview
 
 This is a multiplayer, chat-based social deduction game. Several human players and one or more AI agents join a game room and answer questions over three rounds. All answers are revealed simultaneously at the end of each round to prevent timing tells. Humans try to identify the AI impostor(s); the AI aims to blend in and survive.
@@ -16,6 +18,12 @@ See `docs/` for detailed design and decisions:
 - Data: `docs/database_schema.md`
 - AI service: `docs/ai_service_design.md`, `docs/ai_service_implementation_plan.md`
 - Pipelines: `docs/pipelines_architecture.md`, `docs/analytics_pipeline_implementation.md`
+
+### Gameplay Preview
+
+| Lobby | Game Room |
+| :---: | :---: |
+| ![Lobby Screenshot](docs/images/lobby.png) | ![Game Room Screenshot](docs/images/gameroom.png) |
 
 ### Features
 
@@ -124,7 +132,7 @@ Full specs: `docs/backend_api.md` and `backend/app/api/endpoints/`.
 
 ### AI Service
 
-- Public interface: `generate_ai_response()` with game context (question, language, round, nickname, prior rounds)
+- Public interface: `generate_ai_response()` with game context (question, language, round, prior rounds)
 - Providers: OpenAI (GPT-5) now; Anthropic/Google/xAI planned
 - Prompt strategy: Single flexible system prompt per language; 2–5 sentence answers; per-model temperature for natural variation
 - Note: GPT-5 may return empty strings when `max_tokens` is set—omit and rely on prompt length guidance
