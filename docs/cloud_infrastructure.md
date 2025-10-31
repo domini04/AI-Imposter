@@ -171,13 +171,13 @@ Location: `frontend/.env`
 
 ```bash
 # Firebase Configuration
-VITE_API_KEY="AIzaSyBWyrhmmniVFEkI5bmzNDSYnj3qvOuSxA4"
+VITE_API_KEY=""
 VITE_AUTH_DOMAIN="ai-imposter-6368c.firebaseapp.com"
-VITE_PROJECT_ID="ai-imposter-6368c"
-VITE_STORAGE_BUCKET="ai-imposter-6368c.firebasestorage.app"
-VITE_MESSAGING_SENDER_ID="611852534045"
-VITE_APP_ID="1:611852534045:web:e9ae2a8a765857a3dda1f4"
-VITE_MEASUREMENT_ID="G-Z6SLH0Y0CF"
+VITE_PROJECT_ID=""
+VITE_STORAGE_BUCKET=""
+VITE_MESSAGING_SENDER_ID=""
+VITE_APP_ID=""
+VITE_MEASUREMENT_ID=""
 
 # Backend API Endpoint
 VITE_API_BASE_URL="https://reverse-turing-backend-611852534045.asia-northeast3.run.app"

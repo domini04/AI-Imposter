@@ -790,6 +790,7 @@ def tally_votes(game_id: str):
         "round": current_round,
         "totalVotes": len(votes_this_round),
         "votes": votes_summary,
+        "voteCounts": dict(vote_counts),  # Vote tally for BigQuery analytics
         "eliminatedPlayerId": eliminated_player.get("uid") if eliminated_player else None,
         "eliminatedPlayerName": eliminated_player.get("gameDisplayName") if eliminated_player else None,
         "eliminatedRole": eliminated_role,
